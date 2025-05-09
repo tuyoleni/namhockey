@@ -48,6 +48,127 @@ export type Database = {
           },
         ]
       }
+      event_registrations: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          registration_date: string | null
+          status: string | null
+          team_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          registration_date?: string | null
+          status?: string | null
+          team_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          registration_date?: string | null
+          status?: string | null
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          away_team_id: string | null
+          away_team_score: number | null
+          created_at: string | null
+          created_by_profile_id: string | null
+          description: string | null
+          end_time: string | null
+          event_type: string
+          home_team_id: string | null
+          home_team_score: number | null
+          id: string
+          location_address: string | null
+          location_name: string | null
+          start_time: string
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          away_team_id?: string | null
+          away_team_score?: number | null
+          created_at?: string | null
+          created_by_profile_id?: string | null
+          description?: string | null
+          end_time?: string | null
+          event_type: string
+          home_team_id?: string | null
+          home_team_score?: number | null
+          id?: string
+          location_address?: string | null
+          location_name?: string | null
+          start_time: string
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          away_team_id?: string | null
+          away_team_score?: number | null
+          created_at?: string | null
+          created_by_profile_id?: string | null
+          description?: string | null
+          end_time?: string | null
+          event_type?: string
+          home_team_id?: string | null
+          home_team_score?: number | null
+          id?: string
+          location_address?: string | null
+          location_name?: string | null
+          start_time?: string
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_away_team_id_fkey"
+            columns: ["away_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_home_team_id_fkey"
+            columns: ["home_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follows: {
         Row: {
           created_at: string | null
@@ -117,6 +238,97 @@ export type Database = {
           },
         ]
       }
+      news_articles: {
+        Row: {
+          author_profile_id: string | null
+          content: string
+          cover_image_url: string | null
+          created_at: string | null
+          id: string
+          published_at: string | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          author_profile_id?: string | null
+          content: string
+          cover_image_url?: string | null
+          created_at?: string | null
+          id?: string
+          published_at?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          author_profile_id?: string | null
+          content?: string
+          cover_image_url?: string | null
+          created_at?: string | null
+          id?: string
+          published_at?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "news_articles_author_profile_id_fkey"
+            columns: ["author_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          recipient_profile_id: string
+          related_entity_id: string | null
+          related_entity_type: string | null
+          sent_at: string | null
+          title: string
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          recipient_profile_id: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          sent_at?: string | null
+          title: string
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          recipient_profile_id?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          sent_at?: string | null
+          title?: string
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_recipient_profile_id_fkey"
+            columns: ["recipient_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posts: {
         Row: {
           caption: string | null
@@ -161,6 +373,98 @@ export type Database = {
           profile_picture?: string | null
         }
         Relationships: []
+      }
+      team_members: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_captain: boolean | null
+          jersey_number: number | null
+          joined_date: string | null
+          position: string | null
+          profile_id: string
+          status: string | null
+          team_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_captain?: boolean | null
+          jersey_number?: number | null
+          joined_date?: string | null
+          position?: string | null
+          profile_id: string
+          status?: string | null
+          team_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_captain?: boolean | null
+          jersey_number?: number | null
+          joined_date?: string | null
+          position?: string | null
+          profile_id?: string
+          status?: string | null
+          team_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          logo_url: string | null
+          manager_id: string | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          logo_url?: string | null
+          manager_id?: string | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          logo_url?: string | null
+          manager_id?: string | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

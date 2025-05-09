@@ -20,7 +20,7 @@ export default function LoginScreen() {
       Alert.alert('Login Error', error.message);
     } else {
       Alert.alert('Success', 'Logged in successfully!');
-      router.replace('/(app)'); // Navigate to the main app area
+      router.replace('/(app)/home');
     }
     setLoading(false);
   }

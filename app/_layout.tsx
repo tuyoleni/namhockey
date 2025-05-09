@@ -1,23 +1,84 @@
-import { Stack } from 'expo-router';
-import React from 'react';
+import 'react-native-url-polyfill/auto';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { Session } from '@supabase/supabase-js';
+import { View, ActivityIndicator } from 'react-native';
+import { supabase } from '@utils/superbase';
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
 
-// Optional: Import your global CSS if not already handled by NativeWind setup
-// import "../../global.css";
+// Create a context for the auth state
+const AuthContext = createContext<{ session: Session | null; loading: boolean }>({
+  session: null,
+  loading: true,
+});
+
+// Custom hook to use the AuthContext
+export const useAuth = () => {
+  return useContext(AuthContext);
+};
+
+function useProtectedRoute(session: Session | null, isLoading: boolean) {
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Don't run navigation logic if still loading initial session
+    if (isLoading) {
+      return;
+    }
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!session && !inAuthGroup) {
+      // Redirect to the login page if the user is not authenticated
+      // and is not in the auth group.
+      router.replace('/(auth)/login');
+    } else if (session && inAuthGroup) {
+      // Redirect to the main app if the user is authenticated
+      // and is in the auth group (e.g., after login/signup).
+      router.replace('/(app)');
+    }
+  }, [session, segments, router, isLoading]); // Add isLoading to dependency array
+}
 
 export default function RootLayout() {
-  // Here you would typically add logic to determine if the user is authenticated.
-  // For simplicity, we'll show both stacks for now.
-  // In a real app, you'd conditionally render based on auth state.
-  // e.g., if (isLoading) return <LoadingScreen />;
-  // if (!isSignedIn) return <Redirect href="/(auth)/login" />;
-  // return <Redirect href="/(app)" />;
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+      // setLoading is primarily for the initial session check
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useProtectedRoute(session, loading); // Pass the loading state to the hook
+
+  if (loading) {
+    // You can render a loading indicator here
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(app)" />
-      {/* You might add a global modal screen here if needed */}
-      {/* <Stack.Screen name="modal" options={{ presentation: 'modal' }} /> */}
-    </Stack>
+    <AuthContext.Provider value={{ session, loading }}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(app)" />
+      </Stack>
+    </AuthContext.Provider>
   );
 }

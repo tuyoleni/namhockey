@@ -1,12 +1,18 @@
-// components/skeletons/EventSkeleton.tsx
 import React from 'react';
-import { View } from 'react-native';
+import { View, Text } from 'react-native';
 
 export const EventSkeleton = () => (
-  <View className="bg-gray-200 rounded-lg p-4 mb-4 h-40">
-    <View className="bg-gray-300 rounded-md w-full h-24" />
-    <View className="bg-gray-300 rounded-md w-4/5 h-3 mt-4" />
-    <View className="bg-gray-300 rounded-md w-3/4 h-3 mt-2" />
-    <View className="bg-gray-300 rounded-md w-1/2 h-3 mt-2" />
+  <View style={{ 
+    height: 100, 
+    width: 200, // For horizontal lists, width is important
+    backgroundColor: '#e0e0e0', 
+    padding: 10, 
+    marginVertical: 8, 
+    marginHorizontal: 4, // If used in a horizontal list
+    borderRadius: 8 
+  }}>
+    <View style={{ height: 20, backgroundColor: '#c0c0c0', marginBottom: 10 }} />
+    <View style={{ height: 15, backgroundColor: '#c0c0c0', marginBottom: 6 }} />
+    <View style={{ height: 15, width: '70%', backgroundColor: '#c0c0c0' }} />
   </View>
 );

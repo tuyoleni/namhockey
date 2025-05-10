@@ -1,6 +1,4 @@
 import { Tabs, useRouter } from 'expo-router';
-import React from 'react';
-import { Button, Platform } from 'react-native'; // Example for a logout button
 import { useAuth } from '../_layout'; // Adjust path if your RootLayout is elsewhere
 import { supabase } from '@utils/superbase'; // Ensure this path is correct
 import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
@@ -8,14 +6,6 @@ import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
 export default function AppLayout() {
   const { session } = useAuth();
   const router = useRouter();
-
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (!error) {
-    } else {
-      console.error('Error logging out:', error);
-    }
-  };
 
   return (
     <Tabs

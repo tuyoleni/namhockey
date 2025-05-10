@@ -12,8 +12,8 @@ export type EventQueryResult = {
   location_name: string | null;
   home_team_score: number | null;
   away_team_score: number | null;
-  home_team: { name: string } | null;
-  away_team: { name: string } | null;
+  home_team: { name: string, logo_url: string  } | null;
+  away_team: { name: string, logo_url: string } | null;
 };
 
 
@@ -51,38 +51,26 @@ export const useHomeScreenStore = create<HomeScreenStore>((set, get) => ({
   loadingNews: true,
   refreshing: false,
 
-  // Actions
   fetchUpcomingEvents: async () => {
     set({ loadingEvents: true });
-    const now = new Date().toISOString();
-
+  
     const { data, error } = await supabase
       .from('events')
-      .select(`
-        id,
-        title,
-        start_time,
-        location_name,
-        home_team_score,
-        away_team_score,
-        home_team:home_team_id ( name ),
-        away_team:away_team_id ( name )
-      `)
-      .gte('start_time', now)
-      .eq('status', 'scheduled')
+      .select(`*`)
       .order('start_time', { ascending: true })
       .limit(5);
-
+  
     if (error) {
-      console.error('[fetchUpcomingEvents] Error:', error.message);
+      console.error('[fetchUpcomingEvents] Error:', error);
       set({ upcomingEvents: [] });
     } else {
-       // Cast to unknown first, then to EventQueryResult[] to satisfy TypeScript
+      console.log('[fetchUpcomingEvents] Raw data:', data);
       set({ upcomingEvents: data as unknown as EventQueryResult[] || [] });
     }
-
+  
     set({ loadingEvents: false });
   },
+  
 
   fetchRecentResults: async () => {
     set({ loadingResults: true });
@@ -90,31 +78,23 @@ export const useHomeScreenStore = create<HomeScreenStore>((set, get) => ({
 
     const { data, error } = await supabase
       .from('events')
-      .select(`
-        id,
-        title,
-        start_time,
-        location_name,
-        home_team_score,
-        away_team_score,
-        home_team:home_team_id ( name ),
-        away_team:away_team_id ( name )
-      `)
+      .select(`*`)
       .lt('start_time', now)
-      .eq('status', 'completed')
       .order('start_time', { ascending: false })
       .limit(5);
 
+    console.log('[fetchRecentResults] error:', error);
+    console.log('[fetchRecentResults] data:', data);
+
     if (error) {
-      console.error('[fetchRecentResults] Error:', error.message);
       set({ recentResults: [] });
     } else {
-      // Cast to unknown first, then to EventQueryResult[] to satisfy TypeScript
       set({ recentResults: data as unknown as EventQueryResult[] || [] });
     }
 
-    set({ loadingResults: false }); // Corrected syntax
-  },
+    set({ loadingResults: false });
+},
+  
 
   fetchLatestNews: async () => {
     set({ loadingNews: true });
@@ -122,7 +102,6 @@ export const useHomeScreenStore = create<HomeScreenStore>((set, get) => ({
     const { data, error } = await supabase
       .from('news_articles')
       .select('*') // Select all columns as NewsArticleRow includes them
-      .eq('status', 'published')
       .order('published_at', { ascending: false })
       .limit(3);
 

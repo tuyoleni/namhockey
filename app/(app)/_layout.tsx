@@ -20,12 +20,9 @@ export default function AppLayout() {
   return (
     <Tabs
       screenOptions={({ route }) => ({ 
-        headerShown: true,
+        headerShown: false,
         tabBarActiveTintColor: '#007AFF',
         tabBarInactiveTintColor: 'gray',
-        tabBarStyle: {
-        },
-         tabBarShowLabel: false, 
       })}
     >
       <Tabs.Screen
@@ -36,13 +33,6 @@ export default function AppLayout() {
             const iconName = focused ? 'home' : 'home-outline';
             return <Ionicons name={iconName} size={size} color={color} />;
           },
-          headerRight: () => (
-            <Button
-              onPress={handleLogout}
-              title="Logout"
-              color={Platform.OS === 'ios' ? '#FF3B30' : '#FF0000'} // iOS uses different red
-            />
-          ),
         }}
       />
       <Tabs.Screen

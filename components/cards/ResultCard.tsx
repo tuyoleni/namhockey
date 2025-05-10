@@ -1,7 +1,6 @@
 // components/cards/ResultCard.tsx
 import React from 'react';
-import { View, Text } from 'react-native';
-import Card from '@components/Card';
+import { Text, View, Image, TouchableOpacity } from 'react-native';
 
 type ResultCardProps = {
   title: string;
@@ -11,29 +10,73 @@ type ResultCardProps = {
   away_team_score: number;
   start_time: string;
   location_name?: string;
+  home_team_logo?: string;
+  away_team_logo?: string;
   onPress: () => void;
+  isLive?: boolean;
+  backgroundColor?: string;
 };
 
 export const ResultCard = ({
-  title,
   home_team_name,
   away_team_name,
   home_team_score,
   away_team_score,
-  start_time,
-  location_name,
+  home_team_logo,
+  away_team_logo,
   onPress,
+  isLive = false,
+  backgroundColor = 'bg-blue-600',
 }: ResultCardProps) => (
-  <Card onPress={onPress}>
-    <Text className="text-lg font-semibold mb-1.5 text-gray-800">{title || 'Match Result'}</Text>
-    <View className="flex-row justify-around items-center my-2">
-      <Text className="text-sm font-medium text-gray-700 flex-1 text-center">{home_team_name}</Text>
-      <Text className="text-lg font-bold text-blue-600 flex-initial mx-1">{home_team_score ?? '-'}</Text>
-      <Text className="text-xs text-gray-500 mx-2">vs</Text>
-      <Text className="text-lg font-bold text-blue-600 flex-initial mx-1">{away_team_score ?? '-'}</Text>
-      <Text className="text-sm font-medium text-gray-700 flex-1 text-center">{away_team_name}</Text>
+  <TouchableOpacity
+    onPress={onPress}
+    className={`${backgroundColor} rounded-3xl p-4 m-2 w-[280px] h-[140px]`}
+  >
+    {isLive && (
+      <View className="absolute top-3 left-3 flex-row items-center">
+        <Text className="bg-white px-3 py-1 rounded-full text-xs font-bold">LIVE</Text>
+      </View>
+    )}
+
+    <View className="flex-1 flex-row items-center justify-between">
+      {/* Home Team */}
+      <View className="flex-1 items-center">
+        {home_team_logo && (
+          <Image
+            source={{ uri: home_team_logo }}
+            className="w-12 h-12 mb-2"
+            resizeMode="contain"
+          />
+        )}
+        <Text className="text-white text-base font-semibold text-center">
+          {home_team_name}
+        </Text>
+      </View>
+
+      {/* Score */}
+      <View className="flex-row items-center justify-center space-x-3 px-4">
+        <Text className="text-white text-3xl font-bold">
+          {home_team_score ?? 0}
+        </Text>
+        <Text className="text-white/60 text-2xl font-medium">-</Text>
+        <Text className="text-white text-3xl font-bold">
+          {away_team_score ?? 0}
+        </Text>
+      </View>
+
+      {/* Away Team */}
+      <View className="flex-1 items-center">
+        {away_team_logo && (
+          <Image
+            source={{ uri: away_team_logo }}
+            className="w-12 h-12 mb-2"
+            resizeMode="contain"
+          />
+        )}
+        <Text className="text-white text-base font-semibold text-center">
+          {away_team_name}
+        </Text>
+      </View>
     </View>
-    <Text className="text-xs text-gray-500 mb-1">Played on: {new Date(start_time).toLocaleDateString()}</Text>
-    {location_name && <Text className="text-xs text-gray-500 italic">{location_name}</Text>}
-  </Card>
+  </TouchableOpacity>
 );

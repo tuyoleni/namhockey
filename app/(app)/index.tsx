@@ -61,7 +61,7 @@ export default function HomeScreen() {
 
   const renderRecentResults = () => (
     <View className="mb-6">
-      <Text className="text-xl font-bold mb-3 px-4">Live Matches & Recent Results</Text>
+      <Text className="text-xl font-bold mb-3 px-4">Live Matches</Text>
       {loadingResults ? (
         <View className="px-4 flex-row gap-2">
           {[...Array(3)].map((_, i) => <ResultSkeleton key={i} />)}

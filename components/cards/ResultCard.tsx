@@ -24,13 +24,15 @@ export const ResultCard = ({
   away_team_score,
   home_team_logo,
   away_team_logo,
+  start_time,
+  location_name,
   onPress,
   isLive = false,
   backgroundColor = 'bg-blue-600',
 }: ResultCardProps) => (
   <TouchableOpacity
     onPress={onPress}
-    className={`${backgroundColor} rounded-3xl p-4 m-2 w-[280px] h-[140px]`}
+    className={`${backgroundColor} rounded-3xl p-4 m-2 w-[280px] h-[280px] relative`}
   >
     {isLive && (
       <View className="absolute top-3 left-3 flex-row items-center">
@@ -44,7 +46,7 @@ export const ResultCard = ({
         {home_team_logo && (
           <Image
             source={{ uri: home_team_logo }}
-            className="w-12 h-12 mb-2"
+            className="w-16 h-16 mb-2"
             resizeMode="contain"
           />
         )}
@@ -69,7 +71,7 @@ export const ResultCard = ({
         {away_team_logo && (
           <Image
             source={{ uri: away_team_logo }}
-            className="w-12 h-12 mb-2"
+            className="w-16 h-16 mb-2"
             resizeMode="contain"
           />
         )}
@@ -77,6 +79,22 @@ export const ResultCard = ({
           {away_team_name}
         </Text>
       </View>
+    </View>
+
+    {/* Bottom Details */}
+    <View className="absolute bottom-4 left-4">
+      <Text className="text-white/80 text-sm font-medium">
+        {new Date(start_time).toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric'
+        })}
+      </Text>
+      {location_name && (
+        <Text className="text-white/60 text-xs mt-1">
+          {location_name}
+        </Text>
+      )}
     </View>
   </TouchableOpacity>
 );

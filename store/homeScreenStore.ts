@@ -101,7 +101,7 @@ export const useHomeScreenStore = create<HomeScreenStore>((set, get) => ({
 
     const { data, error } = await supabase
       .from('news_articles')
-      .select('*') // Select all columns as NewsArticleRow includes them
+      .select('*')
       .order('published_at', { ascending: false })
       .limit(3);
 
@@ -109,6 +109,7 @@ export const useHomeScreenStore = create<HomeScreenStore>((set, get) => ({
       console.error('[fetchLatestNews] Error:', error.message);
       set({ latestNews: [] });
     } else {
+      console.log('News data ',data)
       set({ latestNews: data || [] });
     }
 

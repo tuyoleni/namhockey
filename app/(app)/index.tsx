@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, FlatList, Animated, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useHomeScreenData } from 'hooks/useHomeScreenData';
+import { Database } from 'types/database.types';
 
 import { EventCard } from '@components/cards/EventCard';
 import { ResultCard } from '@components/cards/ResultCard';
@@ -10,14 +11,28 @@ import { NewsCard } from '@components/cards/NewsCard';
 import { EventSkeleton } from '@components/skeletons/EventSkeleton';
 import { ResultSkeleton } from '@components/skeletons/ResultSkeleton';
 import { NewsSkeleton } from '@components/skeletons/NewsSkeleton';
-import { useScrollStore } from 'store/ScrollStore';
+import { BlurView } from 'expo-blur';
+import { CommentProvider, useComments } from '../../context/CommentContext';
+import { CommentSheet } from '@components/comments/CommentSection';
+import { useSocialStore } from 'store/socialStore';
+import { Comment } from '@components/cards/NewsCard';
 
-// Wrap FlatList to be animated
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
-export default function HomeScreen() {
+type Tables = Database['public']['Tables']
+type DatabaseComment = Tables['comments']['Row'] & {
+  user: Tables['profiles']['Row']
+}
+
+const HomeScreenContent = () => {
   const router = useRouter();
-  const scrollY = useScrollStore((state) => state.scrollY);
+  const { 
+    isCommentSheetVisible, 
+    activePostComments,
+    activePostId,  // Add this
+    closeCommentSheet,
+  } = useComments();
+  
+  const { addComment } = useSocialStore();
 
   const {
     upcomingEvents,
@@ -31,36 +46,41 @@ export default function HomeScreen() {
   } = useHomeScreenData();
 
   const renderUpcomingMatches = () => (
-    <View style={styles.animatedContainer}>
-      <Text className="text-xl font-bold mb-3 px-4">Upcoming Matches</Text>
-      {loadingEvents ? (
-        <View className="px-4 flex-row gap-4">
-          {[...Array(2)].map((_, i) => <EventSkeleton key={i} />)}
-        </View>
-      ) : (
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={upcomingEvents}
-          keyExtractor={(e) => e.id}
-          contentContainerStyle={{ paddingHorizontal: 16 }}
-          ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-          renderItem={({ item }) => (
-            <EventCard
-              home_team_name={item.home_team?.name ?? 'Home'}
-              away_team_name={item.away_team?.name ?? 'Away'}
-              start_time={item.start_time ?? 'No start time'}
-              onPress={() => router.push(`/event/${item.id}`)}
-              scrollY={scrollY}
-            />
-          )}
-        />
-      )}
-    </View>
+    <BlurView
+      intensity={30}
+      className='bg-red-400'
+    >
+      <View className="gap-2 backdrop-blur-md">
+        <Text className="text-xl font-bold px-4 text-white">Upcoming Matches</Text>
+
+        {loadingEvents ? (
+          <View className="px-4 flex-row gap-4">
+            {[...Array(2)].map((_, i) => <EventSkeleton key={i} />)}
+          </View>
+        ) : (
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={upcomingEvents}
+            keyExtractor={(e) => e.id}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 4 }}
+            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+            renderItem={({ item }) => (
+              <EventCard
+                home_team_name={item.home_team?.name ?? 'Home'}
+                away_team_name={item.away_team?.name ?? 'Away'}
+                start_time={item.start_time ?? 'No start time'}
+                onPress={() => router.push(`/event/${item.id}`)}
+              />
+            )}
+          />
+        )}
+      </View>
+    </BlurView>
   );
 
   const renderRecentResults = () => (
-    <View className="mb-6">
+    <View className="mb-6 ">
       <Text className="text-xl font-bold mb-3 px-4">Live Matches</Text>
       {loadingResults ? (
         <View className="px-4 flex-row gap-2">
@@ -92,7 +112,7 @@ export default function HomeScreen() {
   );
 
   const renderLatestNews = () => (
-    <View className="mb-6">
+    <View className="mb-6 ">
       <Text className="text-xl font-bold mb-3 px-4">Latest News</Text>
       {loadingNews ? (
         <View className="px-4">
@@ -104,13 +124,22 @@ export default function HomeScreen() {
           keyExtractor={(n) => n.id}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          renderItem={({ item }) => (
+          renderItem={({ item }: { item: NewsItem }) => (
             <NewsCard
+              id={item.id}
               title={item.title}
               published_at={item.published_at ?? 'No Date Available'}
+              content={item.content ?? ''}
+              cover_image_url={item.cover_image_url ?? null}
               onPress={() => router.push(`/news/${item.id}`)}
+              comments={item.comments?.map(comment => ({
+                id: comment.id,
+                author: comment.author,
+                text: comment.text,
+                timestamp: comment.timestamp
+              })) ?? []}
             />
-          )}
+          )}          
         />
       )}
     </View>
@@ -119,7 +148,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white">
       {renderUpcomingMatches()}
-      <AnimatedFlatList
+      <FlatList
         data={[{ key: 'content' }]}
         renderItem={() => null}
         keyExtractor={(item: unknown, index: number) => (item as { key: string }).key}
@@ -129,20 +158,51 @@ export default function HomeScreen() {
             {renderLatestNews()}
           </>
         }
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 32 }}
       />
+      
+      <CommentSheet
+        comments={activePostComments as unknown as DatabaseComment[]}
+        onClose={closeCommentSheet}
+        onAddComment={async (text) => {
+          if (activePostId) {
+            await addComment(activePostId, text);
+          }
+        }}
+        visible={isCommentSheetVisible}
+      />
     </SafeAreaView>
+  );
+};
+
+// Main component that provides the comments context
+export default function HomeScreen() {
+  return (
+    <CommentProvider>
+      <HomeScreenContent />
+    </CommentProvider>
   );
 }
 
 const styles = StyleSheet.create({
   animatedContainer: {
     paddingBottom: 16,
+    flexGrow: 0,
+    flexShrink: 0,
   },
 });
+
+// Add this interface at the top of the file
+interface NewsItem {
+  author_profile_id: string | null;
+  content: string;
+  cover_image_url: string | null;
+  created_at: string | null;
+  id: string;
+  published_at: string | null;
+  status: string | null;
+  title: string;
+  updated_at: string | null;
+  comments?: Comment[]; // Now using the imported Comment type
+}

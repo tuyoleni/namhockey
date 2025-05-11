@@ -33,13 +33,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "comments_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "comments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -204,39 +197,24 @@ export type Database = {
       }
       likes: {
         Row: {
-          created_at: string | null
-          id: string
-          post_id: string
-          user_id: string
+          created_at: string
+          id: number
+          post_id: string | null
+          user_id: string | null
         }
         Insert: {
-          created_at?: string | null
-          id?: string
-          post_id: string
-          user_id: string
+          created_at?: string
+          id?: never
+          post_id?: string | null
+          user_id?: string | null
         }
         Update: {
-          created_at?: string | null
-          id?: string
-          post_id?: string
-          user_id?: string
+          created_at?: string
+          id?: never
+          post_id?: string | null
+          user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "likes_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "likes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       news_articles: {
         Row: {
@@ -329,46 +307,19 @@ export type Database = {
           },
         ]
       }
-      posts: {
-        Row: {
-          caption: string | null
-          content_url: string | null
-          created_at: string | null
-          id: string
-          user_id: string
-        }
-        Insert: {
-          caption?: string | null
-          content_url?: string | null
-          created_at?: string | null
-          id?: string
-          user_id: string
-        }
-        Update: {
-          caption?: string | null
-          content_url?: string | null
-          created_at?: string | null
-          id?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           bio: string | null
-          display_name: string
           id: string
           profile_picture: string | null
         }
         Insert: {
           bio?: string | null
-          display_name: string
           id: string
           profile_picture?: string | null
         }
         Update: {
           bio?: string | null
-          display_name?: string
           id?: string
           profile_picture?: string | null
         }
@@ -471,7 +422,122 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      binary_quantize: {
+        Args: { "": string } | { "": unknown }
+        Returns: unknown
+      }
+      get_all_nods_page_sections: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: number
+          page_id: number
+          content: string
+          token_count: number
+          embedding: string
+          slug: string
+          heading: string
+        }[]
+      }
+      get_all_nods_pages: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: number
+          parent_page_id: number
+          path: string
+          checksum: string
+          meta: Json
+          type: string
+          source: string
+        }[]
+      }
+      halfvec_avg: {
+        Args: { "": number[] }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      l2_norm: {
+        Args: { "": unknown } | { "": unknown }
+        Returns: number
+      }
+      l2_normalize: {
+        Args: { "": string } | { "": unknown } | { "": unknown }
+        Returns: unknown
+      }
+      sparsevec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      vector_avg: {
+        Args: { "": number[] }
+        Returns: string
+      }
+      vector_dims: {
+        Args: { "": string } | { "": unknown }
+        Returns: number
+      }
+      vector_norm: {
+        Args: { "": string }
+        Returns: number
+      }
+      vector_out: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: { "": string }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

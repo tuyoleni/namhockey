@@ -54,10 +54,10 @@ export const NewsCard = ({
   const transformComments = (comments: SupabaseComment[]): Comment[] => {
     return comments.map(comment => ({
       id: comment.id,
-      author: comment.user.name,
+      author: comment.user?.name || 'Anonymous',  // Changed from username/full_name to name
       text: comment.text,
       timestamp: comment.created_at,
-      avatar: comment.user.avatar_url
+      avatar: comment.user?.avatar_url
     }));
   };
   

@@ -1,5 +1,8 @@
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { useSocialStore } from '../store/socialStore';
+import { supabase } from '@utils/superbase';
+import { useUserStore } from '../store/userStore';
+import { User } from '@supabase/supabase-js';
 
 type Comment = {
   id: string;
@@ -43,12 +46,27 @@ export const CommentProvider = ({ children }: { children: ReactNode }) => {
     
     await addCommentToStore(activePostId, text);
     
+    // Get current user data
+    const { data: user } = await supabase.auth.getUser();
+    const fetchUser = useUserStore.getState().fetchUser;
+    const userData = user?.user?.id ? await fetchUser(user.user.id) : null;
+    
+    // Safely extract display name and avatar
+    const displayName = (userData && 'user' in userData) 
+      ? userData.user.user_metadata?.full_name || 'You'
+      : 'You';
+    
+    const avatarUrl = (userData && 'user' in userData)
+      ? userData.user.user_metadata?.avatar_url
+      : undefined;
+
     // Optimistically update the UI
     const newComment: Comment = {
-      id: Date.now().toString(), // This will be replaced by the actual ID from Supabase
-      author: 'You', // This will be replaced by the actual user data
+      id: Date.now().toString(),
+      author: displayName,
       text: text,
       timestamp: new Date().toISOString(),
+      avatar: avatarUrl
     };
     
     setActivePostComments((prevComments) => [...prevComments, newComment]);

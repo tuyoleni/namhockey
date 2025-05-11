@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@utils/superbase';
 import { Database } from '../types/database.types';
-import { User } from '@supabase/supabase-js';
+import { AuthError, User } from '@supabase/supabase-js';
 
 type Profile = Database['public']['Tables']['profiles']['Row'] & {
   username: string;
@@ -27,6 +27,7 @@ interface UserState {
   fetchUserFollowing: () => Promise<Database['public']['Tables']['follows']['Row'][]>;
   fetchUserActivity: () => Promise<Database['public']['Tables']['notifications']['Row'][]>;
   fetchAuthUser: () => Promise<void>;
+  fetchUser: (uuid: string) => Promise<{ user: User } | AuthError | undefined>;
 } 
 export const useUserStore = create<UserState>((set, get) => ({
   profile: null,
@@ -178,6 +179,16 @@ export const useUserStore = create<UserState>((set, get) => ({
       return [];
     }
   },
+  fetchUser: async (uuid: string) => {
+    try {
+        const { data, error } = await supabase.auth.admin.getUserById(uuid);
+        if (error) return error;
+        return data || undefined;
+    } catch (error) {
+        console.log('Error Fetching Data:', error);
+        return undefined;
+    }
+},
   fetchAuthUser: async () => {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
@@ -186,16 +197,23 @@ export const useUserStore = create<UserState>((set, get) => ({
         console.log('No authenticated user found');
         return;
       }
-      console.log('Auth User Data:', {
-        id: user.id,
-        email: user.email,
-        email_confirmed_at: user.email_confirmed_at,
-        last_sign_in_at: user.last_sign_in_at,
-        user_metadata: {
-          dispay_name: user.user_metadata?.full_name,
-          email_verified: user.user_metadata?.email_verified
-        }
+
+      // Get admin-verified user data
+      const { data: adminUser, error: adminError } = await supabase
+        .from('auth.users')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (adminError) throw adminError;
+
+      console.log('Verified User Data:', {
+        id: adminUser.id,
+        email: adminUser.email,
+        username: adminUser.raw_user_meta_data?.username || 'No username',
+        display_name: adminUser.raw_user_meta_data?.full_name || 'No display name'
       });
+
       set({ authUser: user });
     } catch (error) {
       console.error('Error fetching auth user:', error);

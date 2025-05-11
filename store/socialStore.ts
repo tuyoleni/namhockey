@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@utils/superbase';
 import { Database } from 'types/database.types';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 type Tables = Database['public']['Tables']
 type Comment = Tables['comments']['Row'] & {
@@ -58,7 +59,9 @@ export const useSocialStore = create<SocialState>((set, get) => ({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     
-    const { data: comment } = await supabase
+    console.log('[Comment] Adding comment to post:', postId); // Log before adding
+    
+    const { data: comment, error } = await supabase
       .from('comments')
       .insert({
         user_id: user.id,
@@ -72,7 +75,13 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       `)
       .single();
       
+    if (error) {
+      console.error('[Comment] Error adding comment:', error);
+      return;
+    }
+    
     if (comment) {
+      console.log('[Comment] Successfully added:', comment); // Log successful addition
       set((state) => ({
         comments: {
           ...state.comments,
@@ -83,7 +92,9 @@ export const useSocialStore = create<SocialState>((set, get) => ({
   },
   
   getComments: async (postId) => {
-    const { data: comments } = await supabase
+    console.log('[Comment] Fetching comments for post:', postId);
+    
+    const { data: comments, error } = await supabase
       .from('comments')
       .select(`
         *,
@@ -92,6 +103,40 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
       
+    if (error) {
+      console.error('[Comment] Error fetching comments:', error);
+    } else {
+      console.log('[Comment] Successfully fetched:', comments?.length, 'comments');
+      console.log('[Comment] Full comments data:', JSON.stringify(comments, null, 2));
+    }
+    
     return (comments || []) as Comment[];
+  },
+
+  // Add real-time subscription
+  subscribeToComments: (postId: any, callback: (arg0: RealtimePostgresChangesPayload<{ [key: string]: any; }>) => void) => {
+    console.log('[Comment] Subscribing to comments for post:', postId);
+    
+    const subscription = supabase
+      .channel('comments_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comments',
+          filter: `post_id=eq.${postId}`
+        },
+        (payload) => {
+          console.log('[Comment] Change received:', payload);
+          callback(payload);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[Comment] Unsubscribing from comments for post:', postId);
+      supabase.removeChannel(subscription);
+    };
   }
 }));

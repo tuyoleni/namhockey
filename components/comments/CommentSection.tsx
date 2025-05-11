@@ -100,15 +100,35 @@ export const CommentSheet = ({
     <View className="py-3 border-b border-[#F5F5F7]">
       <View className="flex-row justify-between">
         <Text className="text-[14px] font-semibold text-[#1D1D1F] mb-0.5">
-          {/* {item.user?.display_name || 'Anonymous'} */}
+          {item.user?.id ? `User-${item.user.id}` : 'Anonymous'}
         </Text>
         <Text className="text-xs text-[#86868B]">
-          {new Date(item.created_at || '').toLocaleDateString()}
+          {new Date(item.created_at || '').toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
         </Text>
       </View>
       <Text className="text-[15px] text-[#424245] leading-5 mt-1">
         {item.content}
       </Text>
+      <View className="mt-1">
+        <Text className="text-xs text-[#86868B]">
+          Comment ID: {item.id}
+        </Text>
+        {item.user?.bio && (
+          <Text className="text-xs text-[#86868B] mt-1">
+            Bio: {item.user.bio}
+          </Text>
+        )}
+        {item.user?.profile_picture && (
+          <Text className="text-xs text-[#86868B] mt-1">
+            Has profile picture
+          </Text>
+        )}
+      </View>
     </View>
   );
 

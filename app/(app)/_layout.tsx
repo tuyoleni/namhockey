@@ -1,6 +1,5 @@
 import { Tabs, useRouter } from 'expo-router';
 import { useAuth } from '../_layout';
-import { supabase } from '@utils/superbase';
 import { Ionicons } from '@expo/vector-icons';
 import { CommentProvider } from 'context/CommentContext';
 

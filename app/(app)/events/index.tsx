@@ -1,197 +1,176 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, SafeAreaView } from 'react-native';
-import { supabase } from '@utils/superbase'; // Assuming supabase client is here
-import { Tables } from 'types/database.types'; // Import your database types
-// import { EventCard } from '@components/cards/EventCard'; // We are replacing this
-import { RegistrableEventCard } from '@components/cards/RegistrableEventCard'; // Import the new card
-import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Button, Modal, TouchableOpacity } from 'react-native';
 
-// Define the type for an event, including related team data
-type EventWithTeams = Tables<'events'> & {
-  home_team: Pick<Tables<'teams'>, 'name' | 'logo_url'> | null;
-  away_team: Pick<Tables<'teams'>, 'name' | 'logo_url'> | null;
-  // Add other fields from 'events' table if needed by RegistrableEventCard
-  // e.g., location, description
-};
+import { PlusCircle } from 'lucide-react-native';
+import AddEventForm from '@components/events/AddEventForm';
+import EventList from '@components/events/EventList';
+import RegisterTeamForm from '@components/events/RegisterTeamForm';
+import RegistrationList from '@components/events/RegistrationList';
+import UpdateEventForm from '@components/events/UpdateEventForm';
+import { EventWithTeams } from 'store/eventStore';
 
-export default function EventsScreen() {
-  const [events, setEvents] = useState<EventWithTeams[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+const EventScreen: React.FC = () => {
+  const [isAddModalVisible, setAddModalVisible] = useState(false);
+  const [isUpdateModalVisible, setUpdateModalVisible] = useState(false);
+  const [selectedEventToUpdate, setSelectedEventToUpdate] = useState<EventWithTeams | null>(null);
+  const [isRegistrationsModalVisible, setRegistrationsModalVisible] = useState(false);
+  const [selectedEventIdForRegistrations, setSelectedEventIdForRegistrations] = useState<string | null>(null);
+  const [isRegisterTeamModalVisible, setRegisterTeamModalVisible] = useState(false);
+  const [selectedEventIdForRegistration, setSelectedEventIdForRegistration] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
 
-  const fetchEvents = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data, error: supabaseError } = await supabase
-        .from('events')
-        .select(`
-          *, 
-          location, 
-          description, 
-          home_team:teams!events_home_team_id_fkey(name, logo_url),
-          away_team:teams!events_away_team_id_fkey(name, logo_url)
-        `) // Ensure you select all fields needed by RegistrableEventCard
-        .order('start_time', { ascending: true });
-
-      if (supabaseError) {
-        throw supabaseError;
-      }
-      setEvents(data as EventWithTeams[] || []);
-    } catch (e: any) {
-      setError(e.message || 'Failed to fetch events');
-      console.error('Error fetching events:', e);
-    } finally {
-      setLoading(false);
-    }
+  const handleAddPress = () => {
+    setAddModalVisible(true);
   };
 
-  const handleAddEvent = () => {
-    // Navigate to an Add Event screen
-    router.push('/events/add');
+  const handleAddSuccess = () => {
+    setAddModalVisible(false);
+    // EventList will automatically update due to subscription
   };
 
-  const handleRegisterForEvent = (eventId: string) => {
-    // Logic to navigate to a team registration screen for this event
-    // or open a registration modal.
-    console.log('Register for event:', eventId);
-    // Example: router.push(`/events/${eventId}/register`);
-    // Or: router.push({ pathname: '/teams/select', params: { eventId: eventId } });
+  const handleUpdatePress = (event: EventWithTeams) => {
+    setSelectedEventToUpdate(event);
+    setUpdateModalVisible(true);
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.centered}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading Events...</Text>
-      </SafeAreaView>
-    );
-  }
+  const handleUpdateSuccess = () => {
+    setUpdateModalVisible(false);
+    setSelectedEventToUpdate(null);
+    // EventList will automatically update due to subscription
+  };
 
-  if (error) {
-    return (
-      <SafeAreaView style={styles.centered}>
-        <Text style={styles.errorText}>Error: {error}</Text>
-        <TouchableOpacity style={styles.button} onPress={fetchEvents}>
-          <Text style={styles.buttonText}>Try Again</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
+  const handleDeleteEvent = (eventId: string) => {
+    // The DeleteEventButton component handles the actual deletion and confirmation
+    // The EventList will update automatically via subscription
+  };
+
+  const handleViewRegistrationsPress = (eventId: string) => {
+    setSelectedEventIdForRegistrations(eventId);
+    setRegistrationsModalVisible(true);
+  };
+
+  const handleRegisterTeamPress = (eventId: string) => {
+    setSelectedEventIdForRegistration(eventId);
+    setRegisterTeamModalVisible(true);
+  };
+
+   const handleRegisterTeamSuccess = () => {
+     setRegisterTeamModalVisible(false);
+     setSelectedEventIdForRegistration(null);
+     // RegistrationList will update automatically via subscription
+   }
+
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Register for Events</Text> {/* Updated title */}
-        <TouchableOpacity style={styles.addButton} onPress={handleAddEvent}>
-          <Ionicons name="add-circle-outline" size={28} color="#007AFF" />
+        <Text style={styles.heading}>Events</Text>
+        <TouchableOpacity onPress={handleAddPress} style={styles.addButton}>
+           <PlusCircle size={30} color="#007bff" />
         </TouchableOpacity>
       </View>
-      {events.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>No upcoming events found.</Text>
-          <TouchableOpacity style={styles.button} onPress={fetchEvents}>
-            <Text style={styles.buttonText}>Refresh</Text>
-          </TouchableOpacity>
+
+
+      {/* Event List */}
+      <EventList
+        onUpdateEvent={handleUpdatePress}
+        onDeleteEvent={handleDeleteEvent} // Pass the handler to the list/item
+        onViewRegistrations={handleViewRegistrationsPress}
+        // onEventPress could navigate to a detail screen if needed
+      />
+
+      {/* Add Event Modal */}
+      <Modal
+        visible={isAddModalVisible}
+        animationType="slide"
+        onRequestClose={() => setAddModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+           <AddEventForm onSuccess={handleAddSuccess} onCancel={() => setAddModalVisible(false)} />
         </View>
-      ) : (
-        <FlatList
-          data={events}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.cardContainer}>
-              <RegistrableEventCard
-                eventName={item.name || 'Unnamed Event'}
-                startTime={item.start_time}
-                location={item.location}
-                description={item.description}
-                homeTeamName={item.home_team?.name}
-                homeTeamLogo={item.home_team?.logo_url}
-                awayTeamName={item.away_team?.name}
-                awayTeamLogo={item.away_team?.logo_url}
-                onRegisterPress={() => handleRegisterForEvent(item.id)}
-              />
-            </View>
-          )}
-          contentContainerStyle={styles.listContentContainer}
-          onRefresh={fetchEvents}
-          refreshing={loading}
-        />
-      )}
-    </SafeAreaView>
+      </Modal>
+
+      {/* Update Event Modal */}
+      <Modal
+        visible={isUpdateModalVisible}
+        animationType="slide"
+        onRequestClose={() => setUpdateModalVisible(false)}
+      >
+         <View style={styles.modalContainer}>
+            {selectedEventToUpdate && (
+              <UpdateEventForm event={selectedEventToUpdate} onSuccess={handleUpdateSuccess} onCancel={() => setUpdateModalVisible(false)} />
+            )}
+         </View>
+      </Modal>
+
+       {/* View Registrations Modal */}
+      <Modal
+        visible={isRegistrationsModalVisible}
+        animationType="slide"
+        onRequestClose={() => setRegistrationsModalVisible(false)}
+      >
+         <View style={styles.modalContainer}>
+            <Text style={styles.modalHeading}>Registrations</Text>
+            {selectedEventIdForRegistrations && (
+              <>
+                <RegistrationList eventId={selectedEventIdForRegistrations} />
+                 <Button title="Register Team" onPress={() => handleRegisterTeamPress(selectedEventIdForRegistrations)} />
+              </>
+            )}
+            <Button title="Close" onPress={() => setRegistrationsModalVisible(false)} />
+         </View>
+      </Modal>
+
+       {/* Register Team Modal */}
+       <Modal
+        visible={isRegisterTeamModalVisible}
+        animationType="slide"
+        onRequestClose={() => setRegisterTeamModalVisible(false)}
+      >
+         <View style={styles.modalContainer}>
+            {selectedEventIdForRegistration && (
+               <RegisterTeamForm eventId={selectedEventIdForRegistration} onSuccess={handleRegisterTeamSuccess} onCancel={() => setRegisterTeamModalVisible(false)} />
+            )}
+         </View>
+      </Modal>
+
+
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7', // Light gray background
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: '#f8f8f8',
+    paddingTop: 20, // Add some padding at the top
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    marginBottom: 10,
   },
-  title: {
-    fontSize: 28,
+  heading: {
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#1C1C1E', // Darker text
   },
   addButton: {
-    padding: 8,
+    padding: 5,
   },
-  listContentContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+  modalContainer: {
+    flex: 1,
+    paddingTop: 50, // Adjust as needed for status bar
+    paddingHorizontal: 20,
+    backgroundColor: '#fff',
   },
-  cardContainer: {
-    marginBottom: 16,
-    // alignItems: 'center', // Card will likely be full width, so center might not be needed
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#6C6C6E',
-  },
-  errorText: {
-    fontSize: 16,
-    color: 'red',
+  modalHeading: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
     textAlign: 'center',
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6C6C6E',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
+
+export default EventScreen;

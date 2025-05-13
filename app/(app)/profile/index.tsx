@@ -1,22 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  Image, 
-  TouchableOpacity, 
-  ScrollView, 
-  RefreshControl, 
+import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  RefreshControl,
   Alert,
   Animated,
-  Dimensions
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  StyleProp, // Import StyleProp
+  ViewStyle, // Import ViewStyle
+  TouchableOpacity
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '@utils/superbase';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useUserStore } from '../../../store/userStore';
-import { BlurView } from 'expo-blur';
+import { supabase } from '@utils/superbase'; // Adjust path
 import { StatusBar } from 'expo-status-bar';
+import { useUserStore } from '../../../store/userStore'; // Adjust path
+import ProfileHeader from './ProfileHeader';
+import ProfileActivity from './ProfileActivity';
+import ProfileImage from './ProfileImage';
+import ProfileInfo from './ProfileInfo';
+import ProfileLoadingError from './ProfileLoadingError';
+import ProfileSettings from './ProfileSettings';
+import { UserStore } from 'types/profile.types';
+
 
 const { width } = Dimensions.get('window');
 const HEADER_MAX_HEIGHT = 240;
@@ -24,53 +31,46 @@ const HEADER_MIN_HEIGHT = 90;
 const PROFILE_IMAGE_MAX_SIZE = 100;
 const PROFILE_IMAGE_MIN_SIZE = 40;
 
-export default function ProfileScreen() {
+// Get the typed version of the Zustand hook
+const useUserStoreTyped = useUserStore as unknown as () => UserStore;
+
+
+const ProfileScreen: React.FC = () => {
   const router = useRouter();
-  const { 
-    profile, 
-    authUser,
-    loading, 
-    error, 
+  const {
+    profile,
+    authUser, // authUser is used here for debug info
+    loading,
+    error,
     fetchProfile,
-    fetchAuthUser 
-  } = useUserStore();
+    fetchAuthUser
+  } = useUserStoreTyped(); // Use the typed hook
 
-  const scrollY = new Animated.Value(0);
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT],
-    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
-    extrapolate: 'clamp'
-  });
+  // Use useRef for Animated.Value to keep the same instance across renders
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  const profileImageSize = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT],
-    outputRange: [PROFILE_IMAGE_MAX_SIZE, PROFILE_IMAGE_MIN_SIZE],
-    extrapolate: 'clamp'
-  });
+  // --- Interpolated Values (Passed as props or used internally) ---
+  // Calculations are done here where scrollY is managed.
 
-  const profileImageMarginTop = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT],
-    outputRange: [HEADER_MAX_HEIGHT - PROFILE_IMAGE_MAX_SIZE / 2, HEADER_MIN_HEIGHT - PROFILE_IMAGE_MIN_SIZE / 2],
-    extrapolate: 'clamp'
-  });
+  // Type the scroll event handler
+  const handleScroll = Animated.event<NativeSyntheticEvent<NativeScrollEvent>>(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    // Setting useNativeDriver to false is necessary for animating layout properties like height and marginTop.
+    // This means the animation happens on the JavaScript thread.
+    { useNativeDriver: false }
+  );
 
-  const headerZIndex = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT, HEADER_MAX_HEIGHT],
-    outputRange: [0, 0, 1],
-    extrapolate: 'clamp'
-  });
-
-  const headerTitleOpacity = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT - 20, HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT],
-    outputRange: [0, 0, 1],
-    extrapolate: 'clamp'
-  });
-
+  // --- Effects ---
   useEffect(() => {
+    // Fetch profile and auth user when the component mounts
     fetchProfile();
     fetchAuthUser();
-  }, []);
+    // Include fetch functions in dependencies if they can change,
+    // although Zustand actions are often stable. Add them to satisfy linter or if necessary.
+  }, [fetchProfile, fetchAuthUser]);
 
+
+  // --- Handlers ---
   const handleLogout = async () => {
     try {
       Alert.alert(
@@ -81,242 +81,114 @@ export default function ProfileScreen() {
             text: "Cancel",
             style: "cancel"
           },
-          { 
-            text: "Sign Out", 
+          {
+            text: "Sign Out",
             style: "destructive",
             onPress: async () => {
-              const { error } = await supabase.auth.signOut();
-              if (error) throw error;
+              const { error: signOutError } = await supabase.auth.signOut();
+              if (signOutError) {
+                 console.error('Supabase sign out error:', signOutError.message);
+                 throw signOutError; // Re-throw to be caught below
+              }
+              // Redirect after successful sign out
               router.replace('/(auth)/login');
             }
           }
         ]
       );
-    } catch (error) {
+    } catch (error: any) { // Catching potential errors from Alert.alert or signOut
       Alert.alert('Error', 'Failed to sign out');
-      console.error('Error signing out:', error);
+      console.error('Error signing out:', error instanceof Error ? error.message : error);
     }
   };
 
   const onRefresh = async () => {
+    // Refresh the profile data
     await fetchProfile();
+    // Note: If refreshing should also re-fetch auth user, call fetchAuthUser here too
+    // await fetchAuthUser();
   };
 
-  if (loading && !profile) {
-    return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <Image 
-          source={require('../../../assets/default-avatar.png')} 
-          className="w-20 h-20 opacity-20"
-        />
-        <Text className="mt-4 text-[#8E8E93] font-medium">Loading profile...</Text>
-      </View>
-    );
+  // --- Render Logic ---
+
+  // 1. Render Loading or Error State First
+  // Use the ProfileLoadingError component
+  if (loading || error || !profile) {
+       // It's important to handle the case where profile might be null briefly after loading finishes but before data is set
+       // Or if there's an error before profile is ever loaded.
+       // ProfileLoadingError component handles both loading and error messages.
+       // We pass fetchProfile as onRetry for error state.
+      return <ProfileLoadingError loading={loading} error={error} onRetry={fetchProfile} />;
   }
 
-  if (error) {
-    return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
-        <Text className="mt-4 text-[#FF3B30] font-medium">{error}</Text>
-        <TouchableOpacity 
-          onPress={fetchProfile}
-          className="mt-4 py-2 px-6 bg-[#F2F2F7] rounded-full"
-        >
-          <Text className="text-[#007AFF] font-medium">Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
+  // 2. Render Main Content (Profile is available)
   return (
-    <View className="flex-1 bg-white">
+    <View style={{ flex: 1, backgroundColor: 'white' }}> {/* Use inline style for root flex */}
       <StatusBar style="light" />
-      
-      {/* Animated Header */}
-      <Animated.View 
-        style={{ 
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: headerHeight,
-          width: '100%',
-          zIndex: headerZIndex,
-          elevation: headerZIndex,
-          backgroundColor: '#007AFF'
-        }}
-      >
-        <BlurView 
-          intensity={0} 
-          className="absolute inset-0 bg-[#007AFF]/90"
-        />
-        
-        {/* Header Content */}
-        <SafeAreaView className="flex-1">
-          <Animated.View 
-            style={{ opacity: headerTitleOpacity }}
-            className="flex-row justify-between items-center px-4 h-[44px]"
-          >
-            <Text className="text-lg font-semibold text-white">
-              {profile?.username || 'Profile'}
-            </Text>
-            <TouchableOpacity onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={24} color="white" />
-            </TouchableOpacity>
-          </Animated.View>
-        </SafeAreaView>
-      </Animated.View>
 
-      {/* Profile Image */}
-      <Animated.View 
-        style={{ 
-          position: 'absolute',
-          top: 0,
-          left: width / 2 - PROFILE_IMAGE_MAX_SIZE / 2,
-          width: profileImageSize,
-          height: profileImageSize,
-          marginTop: profileImageMarginTop,
-          zIndex: 2,
-          elevation: 2,
-          transform: [{ translateX: (PROFILE_IMAGE_MAX_SIZE - PROFILE_IMAGE_MIN_SIZE) / 2 }]
-        }}
-      >
-        <Image
-          source={
-            profile?.avatar_url
-              ? { uri: profile.avatar_url }
-              : require('../../../assets/default-avatar.png')
-          }
-          style={{ 
-            width: '100%', 
-            height: '100%', 
-            borderRadius: PROFILE_IMAGE_MAX_SIZE / 2,
-            borderWidth: 3,
-            borderColor: 'white'
-          }}
-        />
-      </Animated.View>
+      {/* Animated Header Component */}
+      <ProfileHeader
+        scrollY={scrollY}
+        profileUsername={profile.username} // profile is guaranteed non-null here
+        onLogout={handleLogout}
+        headerMaxHeight={HEADER_MAX_HEIGHT}
+        headerMinHeight={HEADER_MIN_HEIGHT}
+      />
 
+      {/* Profile Image Component */}
+      {/* profile is guaranteed non-null here */}
+      <ProfileImage
+        scrollY={scrollY}
+        avatarUrl={profile.avatar_url}
+        headerMaxHeight={HEADER_MAX_HEIGHT}
+        headerMinHeight={HEADER_MIN_HEIGHT}
+        profileImageMaxSize={PROFILE_IMAGE_MAX_SIZE}
+        profileImageMinSize={PROFILE_IMAGE_MIN_SIZE}
+      />
+
+      {/* Animated Scroll View */}
       <Animated.ScrollView
-        contentContainerStyle={{ paddingTop: HEADER_MAX_HEIGHT + 60 }}
+        contentContainerStyle={{ paddingTop: HEADER_MAX_HEIGHT + (PROFILE_IMAGE_MAX_SIZE / 2) + 10 }}
         scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
+        onScroll={handleScroll}
         refreshControl={
-          <RefreshControl 
-            refreshing={loading} 
-            onRefresh={onRefresh} 
+          <RefreshControl
+            refreshing={loading} // Use loading state for the spinner
+            onRefresh={onRefresh} // Call onRefresh when pulled
             tintColor="#007AFF"
             colors={["#007AFF"]}
           />
         }
       >
-        {/* Profile Info */}
-        <View className="px-6 items-center">
-          <Text className="text-2xl font-bold text-center text-[#1D1D1F]">
-            {profile?.full_name || 'Name not set'}
-          </Text>
-          <Text className="text-[#8E8E93] text-center mt-1 text-base">
-            @{profile?.username || 'username'}
-          </Text>
-          
-          <Text className="text-[#3A3A3C] text-center mt-3 text-base">
-            {profile?.bio || 'No bio yet'}
-          </Text>
+        {/* Profile Info Component */}
+        {/* profile is guaranteed non-null here */}
+        <ProfileInfo profile={profile} />
 
-          <View className="flex-row justify-around w-full mt-6 bg-[#F2F2F7] rounded-xl p-4">
-            <View className="items-center">
-              <Text className="text-xl font-bold text-[#1D1D1F]">{profile?.posts_count || 0}</Text>
-              <Text className="text-[#8E8E93]">Posts</Text>
-            </View>
-            <View className="items-center">
-              <Text className="text-xl font-bold text-[#1D1D1F]">{profile?.followers_count || 0}</Text>
-              <Text className="text-[#8E8E93]">Followers</Text>
-            </View>
-            <View className="items-center">
-              <Text className="text-xl font-bold text-[#1D1D1F]">{profile?.following_count || 0}</Text>
-              <Text className="text-[#8E8E93]">Following</Text>
-            </View>
-          </View>
+        {/* Activity Section Component */}
+        <ProfileActivity />
 
-          <TouchableOpacity 
-            onPress={() => router.push('/profile/edit')}
-            className="mt-6 py-3 px-6 bg-[#007AFF] rounded-full w-full"
-          >
-            <Text className="text-center font-semibold text-white">Edit Profile</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Settings Section Component */}
+        <ProfileSettings />
 
-        {/* Activity Section */}
-        <View className="px-6 mt-8">
-          <Text className="text-lg font-bold mb-4 text-[#1D1D1F]">Recent Activity</Text>
-          <View className="items-center justify-center py-12 bg-[#F2F2F7] rounded-xl">
-            <View className="w-16 h-16 bg-white rounded-full items-center justify-center mb-2">
-              <Ionicons name="calendar-outline" size={32} color="#8E8E93" />
-            </View>
-            <Text className="text-[#8E8E93] text-base">No recent activity</Text>
-            <TouchableOpacity className="mt-4">
-              <Text className="text-[#007AFF] font-medium">Find Events</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+         {/* Optional Separate Sign Out Button */}
+         {/* Uncomment if you want a sign out button here instead of the header */}
+         {/* <ProfileSignOutButton /> */}
 
-        {/* Settings Section */}
-        <View className="px-6 mt-8">
-          <Text className="text-lg font-bold mb-4 text-[#1D1D1F]">Settings</Text>
-          <View className="bg-[#F2F2F7] rounded-xl overflow-hidden">
-            <TouchableOpacity 
-              className="flex-row items-center px-4 py-4 border-b border-white/30"
-              onPress={() => router.push('/profile/settings')}
-            >
-              <View className="w-8 h-8 bg-[#E9E9EB] rounded-full items-center justify-center">
-                <Ionicons name="settings-outline" size={18} color="#636366" />
-              </View>
-              <Text className="ml-3 text-base text-[#1D1D1F]">Settings</Text>
-              <Ionicons 
-                name="chevron-forward" 
-                size={18} 
-                color="#C7C7CC" 
-                style={{ marginLeft: 'auto' }} 
-              />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              className="flex-row items-center px-4 py-4"
-              onPress={() => router.push('/profile/notifications')}
-            >
-              <View className="w-8 h-8 bg-[#E9E9EB] rounded-full items-center justify-center">
-                <Ionicons name="notifications-outline" size={18} color="#636366" />
-              </View>
-              <Text className="ml-3 text-base text-[#1D1D1F]">Notifications</Text>
-              <Ionicons 
-                name="chevron-forward" 
-                size={18} 
-                color="#C7C7CC" 
-                style={{ marginLeft: 'auto' }} 
-              />
-            </TouchableOpacity>
-          </View>
-          
-          <TouchableOpacity 
-            onPress={handleLogout}
-            className="mt-4 py-4 bg-[#F2F2F7] rounded-xl"
-          >
-            <Text className="text-center font-medium text-[#FF3B30]">Sign Out</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Debug Information - Hidden in production */}
+        {/* Debug Information - Only in development */}
         {__DEV__ && (
           <View className="px-6 mt-8 mb-8">
-            <TouchableOpacity 
+            <TouchableOpacity
               className="bg-[#F2F2F7] p-4 rounded-xl"
               onPress={() => {
-                Alert.alert("Debug Info", JSON.stringify({profile, authUser}, null, 2));
+                // Use Alert.alert to display debug data
+                Alert.alert(
+                  "Debug Info",
+                  JSON.stringify({ profile, authUser, loading, error }, null, 2) // Stringify the data
+                );
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Show debug information"
             >
               <Text className="font-bold mb-2 text-[#8E8E93]">Debug Information</Text>
               <Text className="text-[#8E8E93] text-xs">Tap to view full data</Text>
@@ -326,4 +198,6 @@ export default function ProfileScreen() {
       </Animated.ScrollView>
     </View>
   );
-}
+};
+
+export default ProfileScreen;

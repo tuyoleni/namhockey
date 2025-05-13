@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '@utils/superbase';
 import { Database } from '../types/database.types';
 import { AuthError, User } from '@supabase/supabase-js';
+import { PostgrestError } from '@supabase/supabase-js'; // Add this import
 
 type Profile = Database['public']['Tables']['profiles']['Row'] & {
   username: string;
@@ -27,7 +28,7 @@ interface UserState {
   fetchUserFollowing: () => Promise<Database['public']['Tables']['follows']['Row'][]>;
   fetchUserActivity: () => Promise<Database['public']['Tables']['notifications']['Row'][]>;
   fetchAuthUser: () => Promise<void>;
-  fetchUser: (uuid: string) => Promise<{ user: User } | AuthError | undefined>;
+  fetchUser: (uuid: string) => Promise<{ user: Profile } | PostgrestError | undefined>;
 } 
 export const useUserStore = create<UserState>((set, get) => ({
   profile: null,
@@ -181,37 +182,45 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
   fetchUser: async (uuid: string) => {
     try {
-        const { data, error } = await supabase.auth.admin.getUserById(uuid);
-        if (error) return error;
-        return data || undefined;
+      // Fetch user from profiles table instead of auth.users
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', uuid)
+        .single();
+  
+      if (profileError) {
+        console.log('fetchUser error:', profileError);
+        return profileError;
+      }
+  
+      console.log('fetchUser result:', profile);
+      return profile ? { user: profile } : undefined;
     } catch (error) {
-        console.log('Error Fetching Data:', error);
-        return undefined;
+      console.log('Error Fetching Data:', error);
+      return undefined;
     }
-},
+  },
   fetchAuthUser: async () => {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) throw error;
-      if (!user) {
-        console.log('No authenticated user found');
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        set({ error: 'No active session. Please log in.' });
         return;
       }
 
-      // Get admin-verified user data
-      const { data: adminUser, error: adminError } = await supabase
-        .from('auth.users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      if (!user) {
+        set({ error: 'No authenticated user found' });
+        return;
+      }
 
-      if (adminError) throw adminError;
-
+      // Access user data directly from the user object
       console.log('Verified User Data:', {
-        id: adminUser.id,
-        email: adminUser.email,
-        username: adminUser.raw_user_meta_data?.username || 'No username',
-        display_name: adminUser.raw_user_meta_data?.full_name || 'No display name'
+        id: user.id,
+        email: user.email,
+        display_name: user.user_metadata?.full_name || 'display name'
       });
 
       set({ authUser: user });

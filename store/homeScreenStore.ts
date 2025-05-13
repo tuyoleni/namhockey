@@ -61,10 +61,10 @@ export const useHomeScreenStore = create<HomeScreenStore>((set, get) => ({
       .limit(5);
   
     if (error) {
-      console.error('[fetchUpcomingEvents] Error:', error);
+      // console.error('[fetchUpcomingEvents] Error:', error);
       set({ upcomingEvents: [] });
     } else {
-      console.log('[fetchUpcomingEvents] Raw data:', data);
+      // console.log('[fetchUpcomingEvents] Raw data:', data);
       set({ upcomingEvents: data as unknown as EventQueryResult[] || [] });
     }
   
@@ -83,8 +83,8 @@ export const useHomeScreenStore = create<HomeScreenStore>((set, get) => ({
       .order('start_time', { ascending: false })
       .limit(5);
 
-    console.log('[fetchRecentResults] error:', error);
-    console.log('[fetchRecentResults] data:', data);
+    // console.log('[fetchRecentResults] error:', error);
+    // console.log('[fetchRecentResults] data:', data);
 
     if (error) {
       set({ recentResults: [] });
@@ -109,7 +109,7 @@ export const useHomeScreenStore = create<HomeScreenStore>((set, get) => ({
       console.error('[fetchLatestNews] Error:', error.message);
       set({ latestNews: [] });
     } else {
-      console.log('News data ',data)
+      // console.log('News data ',data)
       set({ latestNews: data || [] });
     }
 

@@ -43,32 +43,34 @@ export const CommentProvider = ({ children }: { children: ReactNode }) => {
 
   const addComment = async (text: string) => {
     if (!activePostId) return;
-    
-    await addCommentToStore(activePostId, text);
-    
-    // Get current user data
-    const { data: user } = await supabase.auth.getUser();
-    const fetchUser = useUserStore.getState().fetchUser;
-    const userData = user?.user?.id ? await fetchUser(user.user.id) : null;
-    
-    // Safely extract display name and avatar
-    const displayName = (userData && 'user' in userData) 
-      ? userData.user.user_metadata?.full_name || 'You'
-      : 'You';
-    
-    const avatarUrl = (userData && 'user' in userData)
-      ? userData.user.user_metadata?.avatar_url
-      : undefined;
 
+    await addCommentToStore(activePostId, text);
+  
+    // Get current user data using userStore logic
+    const { data: { user } } = await supabase.auth.getUser();
+    const fetchProfile = useUserStore.getState().fetchProfile;
+    await fetchProfile(); // This will fetch both auth user and profile data
+    
+    const profile = useUserStore.getState().profile; // Get the latest profile data
+  
+    // Build the user object for the comment
+    const commentUser = profile
+      ? {
+          id: profile.id,
+          bio: profile.username || null,
+          profile_picture: profile.avatar_url || null
+        }
+      : null;
+  
     // Optimistically update the UI
     const newComment: Comment = {
       id: Date.now().toString(),
-      author: displayName,
+      author: commentUser ? commentUser.id : 'You',
       text: text,
       timestamp: new Date().toISOString(),
-      avatar: avatarUrl
+      avatar: commentUser?.profile_picture || undefined
     };
-    
+  
     setActivePostComments((prevComments) => [...prevComments, newComment]);
   };
 

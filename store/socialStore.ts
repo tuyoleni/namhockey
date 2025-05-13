@@ -107,7 +107,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       console.error('[Comment] Error fetching comments:', error);
     } else {
       console.log('[Comment] Successfully fetched:', comments?.length, 'comments');
-      console.log('[Comment] Full comments data:', JSON.stringify(comments, null, 2));
+      // console.log('[Comment] Full comments data:', JSON.stringify(comments, null, 2));
     }
     
     return (comments || []) as Comment[];

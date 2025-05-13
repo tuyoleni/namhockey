@@ -1673,6 +1673,12 @@
   dependencies:
     merge-options "^3.0.4"
 
+"@react-native-community/datetimepicker@react-native-community/datetimepicker":
+  version "8.3.0"
+  resolved "https://codeload.github.com/react-native-community/datetimepicker/tar.gz/4865e33a14e8faef65f4c83173b6a2223e53d5a3"
+  dependencies:
+    invariant "^2.2.4"
+
 "@react-native-menu/menu@1.2.2":
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/@react-native-menu/menu/-/menu-1.2.2.tgz#550d158f1496ae27cb68424d540d74ee08f6c181"

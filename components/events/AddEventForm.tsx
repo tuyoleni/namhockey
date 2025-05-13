@@ -78,7 +78,8 @@ const AddEventForm: React.FC<AddEventFormProps> = ({ onSuccess, onCancel }) => {
   };
 
   const showEndTimePicker = () => setEndTimePickerVisible(true);
-  hideEndTimePicker = () => setEndTimePickerVisible(false);
+  // Corrected declaration and scope for hideEndTimePicker
+  const hideEndTimePicker = () => setEndTimePickerVisible(false);
   const handleConfirmEndTime = (date: Date) => {
     setEndTime(date);
     hideEndTimePicker();

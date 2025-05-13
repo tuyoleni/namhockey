@@ -95,20 +95,20 @@ const UpdateEventForm: React.FC<UpdateEventFormProps> = ({ event, onSuccess, onC
       <TextInput
         style={styles.input}
         placeholder="Title"
-        value={title}
+        value={title ?? ''} // Use nullish coalescing
         onChangeText={setTitle}
       />
       <TextInput
         style={styles.input}
         placeholder="Description (Optional)"
-        value={description}
+        value={description ?? ''} // Use nullish coalescing
         onChangeText={setDescription}
         multiline
       />
        <TextInput
         style={styles.input}
         placeholder="Event Type"
-        value={eventType}
+        value={eventType ?? ''} // Use nullish coalescing
         onChangeText={setEventType}
       />
 
@@ -137,13 +137,13 @@ const UpdateEventForm: React.FC<UpdateEventFormProps> = ({ event, onSuccess, onC
       <TextInput
         style={styles.input}
         placeholder="Location Name"
-        value={locationName}
+        value={locationName ?? ''} // Use nullish coalescing
         onChangeText={setLocationName}
       />
       <TextInput
         style={styles.input}
         placeholder="Location Address (Optional)"
-        value={locationAddress}
+        value={locationAddress ?? ''} // Use nullish coalescing
         onChangeText={setLocationAddress}
       />
 
@@ -152,14 +152,14 @@ const UpdateEventForm: React.FC<UpdateEventFormProps> = ({ event, onSuccess, onC
          <TextInput
             style={[styles.input, styles.scoreInput]}
             placeholder="Home Score"
-            value={homeTeamScore}
+            value={homeTeamScore ?? ''} // Use nullish coalescing
             onChangeText={setHomeTeamScore}
             keyboardType="numeric"
          />
          <TextInput
             style={[styles.input, styles.scoreInput]}
             placeholder="Away Score"
-            value={awayTeamScore}
+            value={awayTeamScore ?? ''} // Use nullish coalescing
             onChangeText={setAwayTeamScore}
             keyboardType="numeric"
          />
@@ -170,7 +170,7 @@ const UpdateEventForm: React.FC<UpdateEventFormProps> = ({ event, onSuccess, onC
        <TextInput
         style={styles.input}
         placeholder="Status (e.g., scheduled, completed)"
-        value={status}
+        value={status ?? ''} // Use nullish coalescing
         onChangeText={setStatus}
       />
 

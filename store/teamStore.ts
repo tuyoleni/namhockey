@@ -1,12 +1,10 @@
 import { create } from 'zustand';
-import { supabase } from '@utils/superbase'; // Adjust the import path for your supabase client
-import { Database, Tables, TablesInsert, TablesUpdate } from 'types/database.types'; // Adjust the import path for your database types
+import { supabase } from '@utils/superbase'; 
+import { Database, Tables, TablesInsert, TablesUpdate } from 'types/database.types'; 
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
-// Type for a raw team row from the database
 type TeamRow = Tables<'teams'>;
 
-// Define the state interface for the team store
 interface TeamState {
   teams: TeamRow[];
   loadingTeams: boolean;

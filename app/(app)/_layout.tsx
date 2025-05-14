@@ -1,14 +1,12 @@
 import { Tabs, useRouter } from 'expo-router';
 import { useAuth } from '../_layout';
 import { Ionicons } from '@expo/vector-icons';
-import { CommentProvider } from 'context/CommentContext';
 
 export default function AppLayout() {
   const { session } = useAuth();
   const router = useRouter();
 
   return (
-    <CommentProvider>
       <Tabs
         screenOptions={({ route }) => ({ 
           headerShown: false,
@@ -57,6 +55,5 @@ export default function AppLayout() {
           }}
         />
       </Tabs>
-    </CommentProvider>
   );
 }

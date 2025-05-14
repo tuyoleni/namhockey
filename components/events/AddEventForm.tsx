@@ -32,7 +32,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 
-const eventTypes = ['Match', 'Practice', 'Tournament', 'Meeting', 'Other'];
+const eventTypes = ['Match', 'Tournament', 'Meeting'];
 
 type TeamRow = Tables<'teams'>;
 

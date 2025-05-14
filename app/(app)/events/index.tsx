@@ -108,13 +108,11 @@ const EventScreen: React.FC = () => {
    if (loadingUser) {
        return (
            <View className="flex-1 justify-center items-center bg-gray-100">
-               <ActivityIndicator size="large" color="#007bff" />
-               <Text className="mt-2 text-gray-700">Loading user data...</Text>
+               <ActivityIndicator />
            </View>
        );
    }
 
-   // Show error if user data fetching failed
    if (userError) {
        return (
            <View className="flex-1 justify-center items-center bg-gray-100 p-5">
@@ -137,7 +135,6 @@ const EventScreen: React.FC = () => {
         <SafeAreaView className="flex-1 bg-gray-100 pt-5">
           <View className="flex-row justify-between items-center px-4 mb-3">
             <Text className="text-2xl font-bold text-black">Events</Text>
-            {/* Button to open the Add Event Modal */}
             <TouchableOpacity onPress={handleAddPress} className="p-1" disabled={!authUser}>
                <PlusCircle size={30} color={authUser ? "#007bff" : "#ccc"} />
             </TouchableOpacity>

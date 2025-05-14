@@ -2,11 +2,14 @@ import 'react-native-url-polyfill/auto';
 import '../global.css';
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator } from 'react-native'; // Removed StyleSheet import
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@utils/superbase';
 import { Buffer } from 'buffer';
+
+// Removed imports for GestureHandlerRootView and BottomSheetModalProvider
+
 
 global.Buffer = Buffer;
 
@@ -90,6 +93,7 @@ export default function RootLayout() {
   }
 
   return (
+    // Removed GestureHandlerRootView and BottomSheetModalProvider wrapping
     <AuthContext.Provider value={{ session, loading: initialLoading, initialLoading }}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />

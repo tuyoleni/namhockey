@@ -1,3 +1,9 @@
+import AddEventForm from '@components/events/AddEventForm';
+import EventList from '@components/events/EventList';
+import RegisterTeamForm from '@components/events/RegisterTeamForm';
+import RegistrationList from '@components/events/RegistrationList';
+import UpdateEventForm from '@components/events/UpdateEventForm';
+import { PlusCircle } from 'lucide-react-native';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
@@ -8,19 +14,16 @@ import {
   Modal,
   Button,
 } from 'react-native';
-
-import { PlusCircle } from 'lucide-react-native';
-import { useUserStore } from 'store/userStore';
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import AddEventForm from '@components/events/AddEventForm';
-import EventList from '@components/events/EventList';
-import RegisterTeamForm from '@components/events/RegisterTeamForm';
-import RegistrationList from '@components/events/RegistrationList';
-import UpdateEventForm from '@components/events/UpdateEventForm';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { EventWithTeams, useEventStore } from 'store/eventStore';
+import { useUserStore } from 'store/userStore';
+
+
 
 
 const EventScreen: React.FC = () => {
+
+  const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isUpdateModalVisible, setUpdateModalVisible] = useState(false);
   const [selectedEventToUpdate, setSelectedEventToUpdate] = useState<EventWithTeams | null>(null);
   const [isRegistrationsModalVisible, setRegistrationsModalVisible] = useState(false);
@@ -28,8 +31,6 @@ const EventScreen: React.FC = () => {
   const [isRegisterTeamModalVisible, setRegisterTeamModalVisible] = useState(false);
   const [selectedEventIdForRegistration, setSelectedEventIdForRegistration] = useState<string | null>(null);
 
-  const addEventBottomSheetModalRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['25%', '50%', '90%'], []);
 
   const { deleteEvent, loadingEvents, error: eventError } = useEventStore();
   const { authUser, fetchAuthUser, loading: loadingUser, error: userError } = useUserStore();
@@ -38,21 +39,16 @@ const EventScreen: React.FC = () => {
     fetchAuthUser();
   }, [fetchAuthUser]);
 
-  const handlePresentAddEventBottomSheet = useCallback(() => {
-     if (authUser) {
-        addEventBottomSheetModalRef.current?.present();
-     } else {
-        Alert.alert('Authentication Required', 'Please log in to add events.');
-     }
-  }, [authUser]);
-
-   const handleAddEventBottomSheetDismiss = useCallback(() => {
-       // Optional: Any logic needed when the bottom sheet is dismissed
-   }, []);
-
+  const handleAddPress = () => {
+    if (authUser) {
+       setAddModalVisible(true);
+    } else {
+       Alert.alert('Authentication Required', 'Please log in to add events.');
+    }
+  };
 
   const handleAddSuccess = () => {
-    addEventBottomSheetModalRef.current?.dismiss();
+    setAddModalVisible(false);
   };
 
   const handleUpdatePress = (event: EventWithTeams) => {
@@ -108,6 +104,7 @@ const EventScreen: React.FC = () => {
      setSelectedEventIdForRegistration(null);
    }
 
+   // Show loading indicator while user data is being fetched
    if (loadingUser) {
        return (
            <View className="flex-1 justify-center items-center bg-gray-100">
@@ -117,6 +114,7 @@ const EventScreen: React.FC = () => {
        );
    }
 
+   // Show error if user data fetching failed
    if (userError) {
        return (
            <View className="flex-1 justify-center items-center bg-gray-100 p-5">
@@ -125,6 +123,7 @@ const EventScreen: React.FC = () => {
        );
    }
 
+    // If authUser is null after loading, prompt for login
     if (!authUser) {
         return (
             <View className="flex-1 justify-center items-center bg-gray-100 p-5">
@@ -135,10 +134,11 @@ const EventScreen: React.FC = () => {
 
 
   return (
-        <View className="flex-1 bg-gray-100 pt-5">
+        <SafeAreaView className="flex-1 bg-gray-100 pt-5">
           <View className="flex-row justify-between items-center px-4 mb-3">
             <Text className="text-2xl font-bold text-black">Events</Text>
-            <TouchableOpacity onPress={handlePresentAddEventBottomSheet} className="p-1" disabled={!authUser}>
+            {/* Button to open the Add Event Modal */}
+            <TouchableOpacity onPress={handleAddPress} className="p-1" disabled={!authUser}>
                <PlusCircle size={30} color={authUser ? "#007bff" : "#ccc"} />
             </TouchableOpacity>
           </View>
@@ -149,21 +149,26 @@ const EventScreen: React.FC = () => {
             onViewRegistrations={handleViewRegistrationsPress}
           />
 
-          <BottomSheetModal
-            ref={addEventBottomSheetModalRef}
-            index={1}
-            snapPoints={snapPoints}
-            onDismiss={handleAddEventBottomSheetDismiss}
+          {/* Add Event Modal (Standard Modal) */}
+          <Modal
+            visible={isAddModalVisible} // Controlled by state
+            animationType="slide"
+            onRequestClose={() => setAddModalVisible(false)}
           >
-             {authUser && (
-                 <AddEventForm
-                   onSuccess={handleAddSuccess}
-                   currentUserId={authUser.id}
-                 />
-              )}
-          </BottomSheetModal>
+             <View className="flex-1 pt-12 px-5 bg-white">
+                 {/* Render AddEventForm inside the Modal */}
+                 {authUser && ( // Only render the form if user is authenticated
+                     <AddEventForm
+                       onSuccess={handleAddSuccess} // Pass the success handler
+                       currentUserId={authUser.id} // Pass the current user ID
+                       onCancel={() => setAddModalVisible(false)} // Pass cancel handler to close modal
+                     />
+                  )}
+             </View>
+          </Modal>
 
 
+          {/* Update Event Modal (Standard Modal) */}
           <Modal
             visible={isUpdateModalVisible}
             animationType="slide"
@@ -176,7 +181,8 @@ const EventScreen: React.FC = () => {
              </View>
           </Modal>
 
-           <Modal
+           {/* View Registrations Modal (Standard Modal) */}
+          <Modal
             visible={isRegistrationsModalVisible}
             animationType="slide"
             onRequestClose={() => setRegistrationsModalVisible(false)}
@@ -188,8 +194,7 @@ const EventScreen: React.FC = () => {
                     <RegistrationList eventId={selectedEventIdForRegistrations} />
                      <Button
                         title="Register Team"
-                        // Use non-null assertion here as the parent conditional guarantees it's not null
-                        onPress={() => handleRegisterTeamPress(selectedEventIdForRegistration!)}
+                        onPress={() => handleRegisterTeamPress(selectedEventIdForRegistrations!)}
                         disabled={!authUser}
                      />
                   </>
@@ -198,6 +203,7 @@ const EventScreen: React.FC = () => {
              </View>
           </Modal>
 
+           {/* Register Team Modal (Standard Modal) */}
            <Modal
             visible={isRegisterTeamModalVisible}
             animationType="slide"
@@ -216,7 +222,7 @@ const EventScreen: React.FC = () => {
                 </View>
              </View>
           </Modal>
-        </View>
+        </SafeAreaView>
   );
 };
 

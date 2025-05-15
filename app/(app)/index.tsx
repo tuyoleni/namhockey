@@ -1,51 +1,52 @@
-// src/screens/HomeScreen.tsx
-
 import React, { useEffect } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
-import { useNewsStore } from 'store/newsStore'; // Adjust import path
-import { useEventStore } from 'store/eventStore'; // Adjust import path
-import { useMediaStore } from 'store/mediaStore'; // Adjust import path
-import { useUserStore } from 'store/userStore'; // Adjust import path
+import { useNavigation } from '@react-navigation/native';
+import { useNewsStore } from 'store/newsStore';
+import { useEventStore } from 'store/eventStore';
+import { useMediaStore } from 'store/mediaStore';
+import { useUserStore } from 'store/userStore';
 
-// Import modular components
-import NewsFeed from '@components/home/NewsFeed'; // Adjust import path
-import LiveMatches from '@components/home/LiveMatches'; // Adjust import path
-import UpcomingMatches from '@components/home/UpcomingMatches'; // Adjust import path
-import RecentMatches from '@components/home/RecentMatches'; // Adjust import path
-import MediaPostUpload from '@components/home/MediaPostUpload'; // Adjust import path
-import MediaPostList from '@components/home/MediaPostList'; // We'll create this to display media posts
+import NewsFeed from '@components/home/NewsFeed';
+import LiveMatches from '@components/home/LiveMatches';
+import UpcomingMatches from '@components/home/UpcomingMatches';
+import RecentMatches from '@components/home/RecentMatches';
+import MediaPostUpload from '@components/home/MediaPostUpload';
+import MediaPostList from '@components/home/MediaPostList';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 const HomeScreen: React.FC = () => {
-  // Fetch initial data and subscribe to realtime changes
+  const navigation = useNavigation();
+
   const { fetchNewsArticles, subscribeToNewsArticles, loadingNews, error: newsError } = useNewsStore();
   const { fetchEvents, subscribeToEvents, loadingEvents, error: eventError } = useEventStore();
-  const { fetchMediaPosts, subscribeToMediaPosts, loadingMedia, error: mediaError } = useMediaStore();
+  const { fetchMediaPosts, loadingMedia, error: mediaError } = useMediaStore();
   const { fetchAuthUser, authUser, loading: loadingUser, error: userError } = useUserStore();
 
 
   useEffect(() => {
-    // Fetch initial data when the component mounts
     fetchNewsArticles();
     fetchEvents();
     fetchMediaPosts();
-    fetchAuthUser(); // Fetch authenticated user
+    fetchAuthUser();
 
-    // Subscribe to realtime changes
     const unsubscribeNews = subscribeToNewsArticles();
     const unsubscribeEvents = subscribeToEvents();
-    const unsubscribeMedia = subscribeToMediaPosts();
 
-    // Clean up subscriptions on component unmount
     return () => {
       unsubscribeNews();
       unsubscribeEvents();
-      unsubscribeMedia();
     };
-  }, [fetchNewsArticles, subscribeToNewsArticles, fetchEvents, subscribeToEvents, fetchMediaPosts, subscribeToMediaPosts, fetchAuthUser]);
+  }, [fetchNewsArticles, subscribeToNewsArticles, fetchEvents, subscribeToEvents, fetchMediaPosts, fetchAuthUser]);
 
 
-  // Show loading indicator if any data is being loaded initially
+  useEffect(() => {
+      if (!loadingUser && !authUser) {
+          navigation.navigate('Login' as never);
+      }
+  }, [loadingUser, authUser, navigation]);
+
+
   if (loadingNews || loadingEvents || loadingMedia || loadingUser) {
     return (
       <View style={styles.centered}>
@@ -55,7 +56,6 @@ const HomeScreen: React.FC = () => {
     );
   }
 
-  // Display error message if any store has an error
   if (newsError || eventError || mediaError || userError) {
     return (
       <View style={styles.centered}>
@@ -68,43 +68,28 @@ const HomeScreen: React.FC = () => {
     );
   }
 
+  if (!authUser && !loadingUser) {
+      return null;
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.heading}>Home</Text>
-        {/* Add a welcome message or user info here */}
-        {authUser && <Text>Welcome, {authUser.email || 'User'}!</Text>}
-      </View>
-
-      {/* Live Matches Section (Placeholder) */}
-      <LiveMatches />
-
-      {/* Upcoming Matches Section */}
-      <UpcomingMatches />
-
-      {/* Recent Matches Section */}
-      <RecentMatches />
-
-      {/* Media Post Upload Section (Only show if user is authenticated) */}
-      {authUser && <MediaPostUpload currentUserId={authUser.id} />}
-
-      {/* Media Post List Section */}
-      <MediaPostList />
-
-      {/* News Feed Section */}
-      <NewsFeed />
-
-      {/* Add other sections as needed */}
-    </ScrollView>
+    <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView style={styles.container}>
+            <LiveMatches />
+            <UpcomingMatches />
+            <RecentMatches />
+            {authUser && <MediaPostUpload currentUserId={authUser.id} />}
+            <MediaPostList />
+            <NewsFeed />
+        </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0', // Light gray background
+    backgroundColor: '#f0f0f0',
     paddingVertical: 10,
   },
   header: {

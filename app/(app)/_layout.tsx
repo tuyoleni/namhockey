@@ -1,11 +1,7 @@
 import { Tabs, useRouter } from 'expo-router';
-import { useAuth } from '../_layout';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function AppLayout() {
-  const { session } = useAuth();
-  const router = useRouter();
-
   return (
       <Tabs
         screenOptions={({ route }) => ({ 

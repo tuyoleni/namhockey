@@ -2,31 +2,12 @@ import 'react-native-url-polyfill/auto';
 import '../global.css';
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { View, ActivityIndicator } from 'react-native'; // Removed StyleSheet import
+import { ActivityIndicator } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@utils/superbase';
-import { Buffer } from 'buffer';
+import { AuthContext, useAuth } from 'context/auth.context';
 
-// Removed imports for GestureHandlerRootView and BottomSheetModalProvider
-
-
-global.Buffer = Buffer;
-
-// Auth context
-const AuthContext = createContext<{
-  session: Session | null;
-  loading: boolean;
-  initialLoading: boolean;
-}>({
-  session: null,
-  loading: true,
-  initialLoading: true,
-});
-
-export const useAuth = () => useContext(AuthContext);
-
-// Route protection
 function useProtectedRoute() {
   const { session, initialLoading } = useAuth();
   const segments = useSegments();
@@ -93,7 +74,6 @@ export default function RootLayout() {
   }
 
   return (
-    // Removed GestureHandlerRootView and BottomSheetModalProvider wrapping
     <AuthContext.Provider value={{ session, loading: initialLoading, initialLoading }}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useNewsStore } from 'store/newsStore';
 import { useEventStore } from 'store/eventStore';
 import { useMediaStore } from 'store/mediaStore';
@@ -14,9 +14,11 @@ import MediaPostUpload from '@components/home/MediaPostUpload';
 import MediaPostList from '@components/home/MediaPostList';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// StyleSheet is no longer needed for these styles
+// import { StyleSheet } from 'react-native';
 
 const HomeScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
 
   const { fetchNewsArticles, subscribeToNewsArticles, loadingNews, error: newsError } = useNewsStore();
   const { fetchEvents, subscribeToEvents, loadingEvents, error: eventError } = useEventStore();
@@ -42,28 +44,30 @@ const HomeScreen: React.FC = () => {
 
   useEffect(() => {
       if (!loadingUser && !authUser) {
-          navigation.navigate('Login' as never);
+          console.log('No authenticated user found, navigating to Login using Expo Router.');
+          router.replace('/(auth)/login');
       }
-  }, [loadingUser, authUser, navigation]);
+  }, [loadingUser, authUser, router]);
 
 
+  // Use Tailwind classes for loading and error states
   if (loadingNews || loadingEvents || loadingMedia || loadingUser) {
     return (
-      <View style={styles.centered}>
+      <View className="flex-1 justify-center items-center">
         <ActivityIndicator size="large" color="#007bff" />
-        <Text>Loading data...</Text>
+        <Text className="mt-2 text-gray-700">Loading data...</Text>
       </View>
     );
   }
 
   if (newsError || eventError || mediaError || userError) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Error loading data:</Text>
-        {newsError && <Text style={styles.errorText}>News: {newsError}</Text>}
-        {eventError && <Text style={styles.errorText}>Events: {eventError}</Text>}
-        {mediaError && <Text style={styles.errorText}>Media: {mediaError}</Text>}
-        {userError && <Text style={styles.errorText}>User: {userError}</Text>}
+      <View className="flex-1 justify-center items-center p-4">
+        <Text className="text-red-500 text-lg text-center mb-2">Error loading data:</Text>
+        {newsError && <Text className="text-red-500 text-base text-center">{newsError}</Text>}
+        {eventError && <Text className="text-red-500 text-base text-center">{eventError}</Text>}
+        {mediaError && <Text className="text-red-500 text-base text-center">{mediaError}</Text>}
+        {userError && <Text className="text-red-500 text-base text-center">{userError}</Text>}
       </View>
     );
   }
@@ -72,9 +76,10 @@ const HomeScreen: React.FC = () => {
       return null;
   }
 
+  // Use Tailwind classes for the main content layout
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-gray-100"> {/* Applied flex-1 and background here */}
+        <ScrollView className="flex-1 py-2.5"> {/* Applied flex-1 and vertical padding */}
             <LiveMatches />
             <UpcomingMatches />
             <RecentMatches />
@@ -85,32 +90,5 @@ const HomeScreen: React.FC = () => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 10,
-  },
-  header: {
-    paddingHorizontal: 15,
-    marginBottom: 15,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    color: 'red',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-});
 
 export default HomeScreen;

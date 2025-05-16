@@ -17,22 +17,21 @@ export default function RegisterScreen() {
       password: password,
       options: {
         data: {
-          full_name: displayName, // Supabase uses 'full_name' in user_metadata by default
-                                  // or you can customize this.
+          full_name: displayName,
         },
       },
     });
 
     if (error) {
       Alert.alert('Registration Error', error.message);
+      console.log('Registration Error', error.cause);
+      
     } else if (data.session) {
-      // User is signed up and logged in
       Alert.alert('Success', 'Registered and logged in successfully!');
       router.replace('/(app)');
     } else if (data.user) {
-        // User is signed up but needs to confirm email (if email confirmation is enabled)
         Alert.alert('Success', 'Registration successful! Please check your email to confirm your account.');
-        router.replace('/(auth)/login'); // Go to login after showing message
+        router.replace('/(auth)/login');
     }
     setLoading(false);
   }

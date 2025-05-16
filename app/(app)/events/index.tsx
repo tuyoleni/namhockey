@@ -17,11 +17,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EventWithTeams, useEventStore } from 'store/eventStore';
 import { useUserStore } from 'store/userStore';
+import { useNavigation } from 'expo-router'; // Import useNavigation
 
 
 
 
 const EventScreen: React.FC = () => {
+  const navigation = useNavigation(); // Get navigation object
 
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isUpdateModalVisible, setUpdateModalVisible] = useState(false);
@@ -46,6 +48,17 @@ const EventScreen: React.FC = () => {
        Alert.alert('Authentication Required', 'Please log in to add events.');
     }
   };
+
+  // Effect to set header options
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity onPress={handleAddPress} style={{ marginRight: 15 }} disabled={!authUser}>
+          <PlusCircle size={30} color={authUser ? "#007AFF" : "#ccc"} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, authUser, handleAddPress]); // Add dependencies
 
   const handleAddSuccess = () => {
     setAddModalVisible(false);
@@ -121,7 +134,6 @@ const EventScreen: React.FC = () => {
        );
    }
 
-    // If authUser is null after loading, prompt for login
     if (!authUser) {
         return (
             <View className="flex-1 justify-center items-center bg-gray-100 p-5">
@@ -132,40 +144,30 @@ const EventScreen: React.FC = () => {
 
 
   return (
-        <SafeAreaView className="flex-1 bg-gray-100 pt-5">
-          <View className="flex-row justify-between items-center px-4 mb-3">
-            <Text className="text-2xl font-bold text-black">Events</Text>
-            <TouchableOpacity onPress={handleAddPress} className="p-1" disabled={!authUser}>
-               <PlusCircle size={30} color={authUser ? "#007bff" : "#ccc"} />
-            </TouchableOpacity>
-          </View>
-
+        <View className="flex-1 bg-gray-100">
           <EventList
             onUpdateEvent={handleUpdatePress}
             onDeleteEvent={handleDeleteEvent}
             onViewRegistrations={handleViewRegistrationsPress}
           />
 
-          {/* Add Event Modal (Standard Modal) */}
           <Modal
             visible={isAddModalVisible} // Controlled by state
             animationType="slide"
             onRequestClose={() => setAddModalVisible(false)}
           >
              <View className="flex-1 pt-12 px-5 bg-white">
-                 {/* Render AddEventForm inside the Modal */}
-                 {authUser && ( // Only render the form if user is authenticated
+                 {authUser && ( 
                      <AddEventForm
-                       onSuccess={handleAddSuccess} // Pass the success handler
-                       currentUserId={authUser.id} // Pass the current user ID
-                       onCancel={() => setAddModalVisible(false)} // Pass cancel handler to close modal
+                       onSuccess={handleAddSuccess}
+                       currentUserId={authUser.id}
+                       onCancel={() => setAddModalVisible(false)}
                      />
                   )}
              </View>
           </Modal>
 
 
-          {/* Update Event Modal (Standard Modal) */}
           <Modal
             visible={isUpdateModalVisible}
             animationType="slide"
@@ -178,7 +180,6 @@ const EventScreen: React.FC = () => {
              </View>
           </Modal>
 
-           {/* View Registrations Modal (Standard Modal) */}
           <Modal
             visible={isRegistrationsModalVisible}
             animationType="slide"
@@ -200,7 +201,6 @@ const EventScreen: React.FC = () => {
              </View>
           </Modal>
 
-           {/* Register Team Modal (Standard Modal) */}
            <Modal
             visible={isRegisterTeamModalVisible}
             animationType="slide"
@@ -219,7 +219,7 @@ const EventScreen: React.FC = () => {
                 </View>
              </View>
           </Modal>
-        </SafeAreaView>
+        </View>
   );
 };
 

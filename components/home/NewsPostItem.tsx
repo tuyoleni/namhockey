@@ -1,7 +1,7 @@
 // src/components/home/NewsPostItem.tsx
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, TextInput, FlatList } from 'react-native';
 import { Tables } from 'types/database.types'; // Adjust import path
 import { useInteractionStore } from 'store/interactionStore'; // Adjust import path
 import { useUserStore } from 'store/userStore'; // Adjust import path
@@ -29,10 +29,14 @@ const NewsPostItem: React.FC<NewsPostItemProps> = ({ post }) => {
     fetchCommentsForPost,
     addCommentToPost, // You'll need a UI for adding comments
     deleteComment, // You'll need a UI for deleting comments
-    loadingLikes, // Loading state for likes specific to this post (conceptual)
-    loadingComments, // Loading state for comments specific to this post (conceptual)
-    error: interactionError, // Error for interaction actions
+    loadingLikes, 
+    loadingComments, 
+    error: interactionError, 
   } = useInteractionStore();
+
+  const [showComments, setShowComments] = useState(false);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   // Filter likes and comments relevant to this specific post
   const postLikes = likes.filter(like => like.post_id === post.id);
@@ -46,6 +50,9 @@ const NewsPostItem: React.FC<NewsPostItemProps> = ({ post }) => {
     fetchLikesForPost(post.id);
     fetchCommentsForPost(post.id);
     // Note: Subscriptions are handled at a higher level (InteractionStore)
+    // or you could initiate a post-specific subscription here if desired:
+    // const unsubscribeComments = subscribeToComments(post.id);
+    // return () => unsubscribeComments();
   }, [post.id, fetchLikesForPost, fetchCommentsForPost]);
 
 
@@ -68,8 +75,37 @@ const NewsPostItem: React.FC<NewsPostItemProps> = ({ post }) => {
 
   // Placeholder for handling comment press (e.g., navigate to a comment screen or open a comment modal)
   const handleCommentPress = () => {
-    console.log('Comment button pressed for post:', post.id);
-    // Implement navigation or modal to view/add comments
+    setShowComments(!showComments);
+  };
+
+  const handleAddComment = async () => {
+    if (!authUser || !newCommentText.trim()) {
+      // Optionally, show an alert or message to the user
+      console.log('User not authenticated or comment is empty.');
+      return;
+    }
+    setIsSubmittingComment(true);
+    try {
+      const commentData = {
+        post_id: post.id,
+        user_id: authUser.id,
+        content: newCommentText.trim(),
+        // created_at will be set by the backend/db
+      };
+      const added = await addCommentToPost(commentData);
+      if (added) {
+        setNewCommentText(''); // Clear input after successful submission
+        // Comments list will update via subscription
+      } else {
+        // Handle case where comment wasn't added (e.g., show error)
+        console.error('Failed to add comment');
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      // Show error to user
+    } finally {
+      setIsSubmittingComment(false);
+    }
   };
 
 
@@ -130,6 +166,49 @@ const NewsPostItem: React.FC<NewsPostItemProps> = ({ post }) => {
            ))}
        </View> */}
 
+      {showComments && (
+        <View style={styles.commentsSection}>
+          <Text style={styles.commentsHeading}>Comments</Text>
+          <FlatList
+            data={postComments}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.commentItem}>
+                <Text style={styles.commentUser}>User ID: {item.user_id.substring(0, 8)}...</Text> 
+                {/* TODO: Fetch and display username/avatar */}
+                <Text style={styles.commentContent}>{item.content}</Text>
+                <Text style={styles.commentTimestamp}>
+                  {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+                </Text>
+              </View>
+            )}
+            ListEmptyComponent={<Text style={styles.noCommentsText}>No comments yet.</Text>}
+          />
+          {authUser && (
+            <View style={styles.addCommentContainer}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Write a comment..."
+                value={newCommentText}
+                onChangeText={setNewCommentText}
+                multiline
+              />
+              <TouchableOpacity 
+                style={[styles.submitCommentButton, isSubmittingComment && styles.submitCommentButtonDisabled]} 
+                onPress={handleAddComment}
+                disabled={isSubmittingComment || !newCommentText.trim()}
+              >
+                <Text style={styles.submitCommentButtonText}>
+                  {isSubmittingComment ? 'Posting...' : 'Post'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {!authUser && (
+            <Text style={styles.loginToCommentText}>Please log in to comment.</Text>
+          )}
+        </View>
+      )}
     </View>
   );
 };
@@ -213,18 +292,84 @@ const styles = StyleSheet.create({
       fontSize: 12,
       marginLeft: 10,
   },
-   commentsHeading: {
-       fontSize: 16,
-       fontWeight: 'bold',
-       marginTop: 10,
-       marginBottom: 5,
-   },
-   commentItem: {
-       backgroundColor: '#f9f9f9',
-       padding: 8,
-       borderRadius: 5,
-       marginBottom: 5,
-   }
+  commentsSection: {
+    marginTop: 15,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  commentsHeading: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  commentItem: {
+    backgroundColor: '#f9f9f9',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 8,
+  },
+  commentUser: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#555',
+    marginBottom: 2,
+  },
+  commentContent: {
+    fontSize: 14,
+    color: '#333',
+  },
+  commentTimestamp: {
+    fontSize: 10,
+    color: '#999',
+    marginTop: 4,
+    textAlign: 'right',
+  },
+  noCommentsText: {
+    fontSize: 14,
+    color: '#777',
+    textAlign: 'center',
+    paddingVertical: 10,
+  },
+  addCommentContainer: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  commentInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    marginRight: 10,
+    minHeight: 40,
+    maxHeight: 100, // Optional: limit height for multiline
+  },
+  submitCommentButton: {
+    backgroundColor: '#007bff',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+  },
+  submitCommentButtonDisabled: {
+    backgroundColor: '#a0cfff',
+  },
+  submitCommentButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  loginToCommentText: {
+    fontSize: 14,
+    color: '#777',
+    textAlign: 'center',
+    paddingVertical: 10,
+    fontStyle: 'italic',
+  }
 });
 
 export default NewsPostItem;

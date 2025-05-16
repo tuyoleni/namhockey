@@ -14,23 +14,31 @@ const ResizeMode = { CONTAIN: 'contain', COVER: 'cover' }; // Placeholder
 
 
 // Define a type for a media post with potential author details
+// Corrected the 'profiles' type to match the structure from the store
 type MediaPostWithAuthor = Tables<'media_posts'> & {
-  profiles?: { username: string | null; avatar_url: string | null } | null;
+  profiles?: { id: string; profile_picture: string | null } | null;
 };
 
 interface MediaPostItemProps {
+  // Explicitly defining the 'post' prop that this component expects
   post: MediaPostWithAuthor;
+
+  // Optional: Add other props if needed in the future, e.g., onPress
+  // onPress?: (post: MediaPostWithAuthor) => void;
 }
 
 const MediaPostItem: React.FC<MediaPostItemProps> = ({ post }) => {
   return (
     <View className="bg-white p-4 mx-4 my-2 rounded-lg">
+       {/* Updated to use profile_picture instead of avatar_url */}
        {post.profiles && (
         <View className="flex-row items-center mb-3">
-          {post.profiles.avatar_url && (
-            <Image source={{ uri: post.profiles.avatar_url }} className="w-8 h-8 rounded-full mr-3" />
+          {post.profiles.profile_picture && (
+            <Image source={{ uri: post.profiles.profile_picture }} className="w-8 h-8 rounded-full mr-3" />
           )}
-          <Text className="text-sm font-bold text-gray-900">{post.profiles.username || 'Unknown User'}</Text>
+          {/* Assuming you might need to fetch username separately or it's not directly in profiles here */}
+          {/* If username is available elsewhere, use it here */}
+          <Text className="text-sm font-bold text-gray-900">{post.profiles.id || 'Unknown User'}</Text> {/* Using ID as a fallback */}
         </View>
       )}
 

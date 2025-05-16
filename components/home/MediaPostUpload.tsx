@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { useMediaStore } from 'store/mediaStore';
 import { PlusSquare } from 'lucide-react-native';
+import { minimalStyles } from './minimalStyles';
 
 interface MediaPostUploadProps {
     currentUserId: string;
@@ -79,17 +80,9 @@ const MediaPostUpload: React.FC<MediaPostUploadProps> = ({ currentUserId }) => {
             try {
                 const fileToUpload = await uriToBlob(uri);
 
-                console.log('Created Blob from URI. Size:', fileToUpload.size);
-                console.log('Created Blob from URI. Type:', fileToUpload.type);
-
                  if (fileToUpload.size === 0) {
                      throw new Error('Created Blob is empty (0KB). Cannot upload.');
                  }
-
-
-                const fileExt = mimeType.split('/').pop() || 'bin';
-                const filePath = `${currentUserId}/${Date.now()}.${fileExt}`;
-
 
                 const uploadedPost = await uploadMediaPost({
                     userId: currentUserId,
@@ -119,87 +112,38 @@ const MediaPostUpload: React.FC<MediaPostUploadProps> = ({ currentUserId }) => {
 
 
     return (
-        <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Upload Media</Text>
+        <View style={minimalStyles.contentWrapper}>
+            {/* Removed section title here, as it's handled in the modal content */}
             <TextInput
-                style={styles.captionInput}
+                style={minimalStyles.captionInput}
                 placeholder="Add a caption (optional)"
                 placeholderTextColor="#8e8e93"
                 value={caption}
                 onChangeText={setCaption}
                 multiline
             />
-            <View style={styles.uploadButtonsContainer}>
+            <View style={minimalStyles.uploadButtonsContainer}>
                 <TouchableOpacity
                     onPress={() => handleUpload('image')}
-                    style={styles.uploadButton}
+                    style={minimalStyles.uploadButton}
                     disabled={isUploading}
                 >
                     <PlusSquare size={24} color={isUploading ? "#ccc" : "#007bff"} />
-                    <Text style={[styles.uploadButtonText, isUploading && { color: '#ccc' }]}>Upload Image</Text>
+                    <Text style={[minimalStyles.uploadButtonText, isUploading && { color: '#ccc' }]}>Upload Image</Text>
                 </TouchableOpacity>
                  <TouchableOpacity
                     onPress={() => handleUpload('video')}
-                    style={styles.uploadButton}
+                    style={minimalStyles.uploadButton}
                     disabled={isUploading}
                 >
                     <PlusSquare size={24} color={isUploading ? "#ccc" : "#007bff"} />
-                    <Text style={[styles.uploadButtonText, isUploading && { color: '#ccc' }]}>Upload Video</Text>
+                    <Text style={[minimalStyles.uploadButtonText, isUploading && { color: '#ccc' }]}>Upload Video</Text>
                  </TouchableOpacity>
             </View>
             {isUploading && <ActivityIndicator size="small" color="#007bff" style={{ marginTop: 10 }} />}
-             {mediaError && <Text style={styles.errorText}>{mediaError}</Text>}
+             {mediaError && <Text style={minimalStyles.errorText}>{mediaError}</Text>}
         </View>
     );
 };
-
-const styles = StyleSheet.create({
-    sectionContainer: {
-        marginBottom: 20,
-        backgroundColor: '#fff',
-        paddingVertical: 15,
-        paddingHorizontal: 10,
-        borderRadius: 8,
-        marginHorizontal: 10,
-    },
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 10,
-        paddingHorizontal: 5,
-    },
-    captionInput: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 5,
-        padding: 10,
-        marginBottom: 15,
-        minHeight: 80,
-        textAlignVertical: 'top',
-    },
-    uploadButtonsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-    },
-    uploadButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#e9ecef',
-        paddingVertical: 10,
-        paddingHorizontal: 15,
-        borderRadius: 5,
-    },
-    uploadButtonText: {
-        marginLeft: 5,
-        fontSize: 16,
-        color: '#007bff',
-    },
-     errorText: {
-        color: 'red',
-        fontSize: 14,
-        textAlign: 'center',
-        marginTop: 10,
-    },
-});
 
 export default MediaPostUpload;

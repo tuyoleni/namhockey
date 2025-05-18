@@ -140,7 +140,7 @@ const MediaPostUpload: React.FC<MediaPostUploadProps> = ({ currentUserId }) => {
                     <Text style={[minimalStyles.uploadButtonText, isUploading && { color: '#ccc' }]}>Upload Video</Text>
                  </TouchableOpacity>
             </View>
-            {isUploading && <ActivityIndicator size="small" color="#007bff" style={{ marginTop: 10 }} />}
+            {isUploading && <ActivityIndicator />}
              {mediaError && <Text style={minimalStyles.errorText}>{mediaError}</Text>}
         </View>
     );

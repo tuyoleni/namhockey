@@ -183,7 +183,7 @@ const UpdateEventForm: React.FC<UpdateEventFormProps> = ({ event, onSuccess, onC
       </View>
 
 
-      {loadingEvents && <ActivityIndicator size="small" color="#007bff" />}
+      {loadingEvents && <ActivityIndicator/>}
       {error && <Text style={styles.errorText}>{error}</Text>}
     </ScrollView>
   );

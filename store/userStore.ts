@@ -1,19 +1,17 @@
 import { create } from 'zustand';
 import { supabase } from '@utils/superbase';
-import { Database } from '../types/database.types';
+import { Database, Tables } from '../types/database.types';
 import { AuthError, User } from '@supabase/supabase-js';
-import { PostgrestError } from '@supabase/supabase-js'; // Add this import
+import { PostgrestError } from '@supabase/supabase-js';
 
-type Profile = Database['public']['Tables']['profiles']['Row'] & {
-  username: string;
-  full_name: string;
-  avatar_url: string | null;
+export type Profile = Tables<'profiles'> & {
+  username: string | null;
+  full_name: string | null;
   following_count: number;
   followers_count: number;
   posts_count: number;
 };
 
-// Update AuthUser to match Supabase User type
 type AuthUser = User;
 
 interface UserState {
@@ -23,13 +21,14 @@ interface UserState {
   error: string | null;
   fetchProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
-  fetchUserPosts: () => Promise<Database['public']['Tables']['news_articles']['Row'][]>;
-  fetchUserFollowers: () => Promise<Database['public']['Tables']['follows']['Row'][]>;
-  fetchUserFollowing: () => Promise<Database['public']['Tables']['follows']['Row'][]>;
-  fetchUserActivity: () => Promise<Database['public']['Tables']['notifications']['Row'][]>;
+  fetchUserPosts: () => Promise<Tables<'news_articles'>[]>;
+  fetchUserFollowers: () => Promise<Tables<'follows'>[]>;
+  fetchUserFollowing: () => Promise<Tables<'follows'>[]>;
+  fetchUserActivity: () => Promise<Tables<'notifications'>[]>;
   fetchAuthUser: () => Promise<void>;
   fetchUser: (uuid: string) => Promise<{ user: Profile } | PostgrestError | undefined>;
-} 
+}
+
 export const useUserStore = create<UserState>((set, get) => ({
   profile: null,
   authUser: null,
@@ -43,7 +42,6 @@ export const useUserStore = create<UserState>((set, get) => ({
       
       if (!user) throw new Error('No user found');
 
-      // Get profile data
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -52,14 +50,23 @@ export const useUserStore = create<UserState>((set, get) => ({
 
       if (profileError) throw profileError;
 
-      // Set both auth user and profile data
+      const combinedProfile: Profile = {
+        ...(profileData as Tables<'profiles'>),
+        username: user.user_metadata?.username || null,
+        full_name: user.user_metadata?.full_name || null,
+        following_count: 0,
+        followers_count: 0,
+        posts_count: 0,
+      };
+
       set({ 
         authUser: user,
-        profile: profileData,
+        profile: combinedProfile,
         loading: false 
       });
     } catch (error) {
-      set({ error: 'Failed to fetch profile', loading: false });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      set({ error: `Failed to fetch profile: ${errorMessage}`, loading: false });
     }
   },
 
@@ -70,9 +77,14 @@ export const useUserStore = create<UserState>((set, get) => ({
       
       if (!user) throw new Error('No user found');
 
+      const profileTableUpdates: Partial<Tables<'profiles'>> = {
+        bio: updates.bio,
+        profile_picture: updates.profile_picture,
+      };
+
       const { error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(profileTableUpdates)
         .eq('id', user.id);
 
       if (error) throw error;
@@ -82,7 +94,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         loading: false
       }));
     } catch (error) {
-      set({ error: 'Failed to update profile', loading: false });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      set({ error: `Failed to update profile: ${errorMessage}`, loading: false });
     }
   },
 
@@ -118,9 +131,8 @@ export const useUserStore = create<UserState>((set, get) => ({
           follower_id,
           profiles!follows_follower_id_fkey (
             id,
-            username,
-            full_name,
-            avatar_url
+            bio,
+            profile_picture
           )
         `)
         .eq('followee_id', profile.id);
@@ -146,9 +158,8 @@ export const useUserStore = create<UserState>((set, get) => ({
           follower_id,
           profiles!follows_followee_id_fkey (
             id,
-            username,
-            full_name,
-            avatar_url
+            bio,
+            profile_picture
           )
         `)
         .eq('follower_id', profile.id);
@@ -180,10 +191,10 @@ export const useUserStore = create<UserState>((set, get) => ({
       return [];
     }
   },
+  
   fetchUser: async (uuid: string) => {
     try {
-      // Fetch user from profiles table instead of auth.users
-      const { data: profile, error: profileError } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', uuid)
@@ -194,13 +205,23 @@ export const useUserStore = create<UserState>((set, get) => ({
         return profileError;
       }
   
-      console.log('fetchUser result:', profile);
-      return profile ? { user: profile } : undefined;
+      const enrichedProfile: Profile = {
+        ...(profileData as Tables<'profiles'>),
+        username: null,
+        full_name: null,
+        following_count: 0,
+        followers_count: 0,
+        posts_count: 0,
+      }
+      
+      console.log('fetchUser result:', enrichedProfile);
+      return enrichedProfile ? { user: enrichedProfile } : undefined;
     } catch (error) {
       console.log('Error Fetching Data:', error);
       return undefined;
     }
   },
+
   fetchAuthUser: async () => {
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -216,7 +237,6 @@ export const useUserStore = create<UserState>((set, get) => ({
         return;
       }
 
-      // Access user data directly from the user object
       console.log('Verified User Data:', {
         id: user.id,
         email: user.email,
@@ -226,7 +246,8 @@ export const useUserStore = create<UserState>((set, get) => ({
       set({ authUser: user });
     } catch (error) {
       console.error('Error fetching auth user:', error);
-      set({ error: 'Failed to fetch auth user' });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      set({ error: `Failed to fetch auth user: ${errorMessage}` });
     }
   }
 }));

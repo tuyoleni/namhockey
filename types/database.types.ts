@@ -345,16 +345,19 @@ export type Database = {
       profiles: {
         Row: {
           bio: string | null
+          display_name: string | null
           id: string
           profile_picture: string | null
         }
         Insert: {
           bio?: string | null
+          display_name?: string | null
           id: string
           profile_picture?: string | null
         }
         Update: {
           bio?: string | null
+          display_name?: string | null
           id?: string
           profile_picture?: string | null
         }

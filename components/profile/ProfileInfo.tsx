@@ -1,13 +1,13 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
-import { ProfileType } from 'types/profile.types';
+import { Profile } from 'store/userStore';
 
 interface ProfileInfoProps {
-  profile: ProfileType | null | undefined;
+  profile: Profile | null | undefined;
   profileImageSize?: number;
 }
 
-const ProfileInfo: React.FC<ProfileInfoProps> = ({ profile, profileImageSize = 80 }) => {
+const ProfileInfo: React.FC<ProfileInfoProps> = ({ profile, profileImageSize = 90 }) => {
   return (
     <View className="px-6 items-center">
       <View 
@@ -22,14 +22,14 @@ const ProfileInfo: React.FC<ProfileInfoProps> = ({ profile, profileImageSize = 8
       >
         <Image
           source={
-            profile?.avatar_url
-              ? { uri: profile.avatar_url }
+            profile?.profile_picture
+              ? { uri: profile.profile_picture }
               : require('../../assets/default-avatar.png')
           }
           style={{
-            width: 90,
-            height: 90,
-            borderRadius: 45,
+            width: profileImageSize,
+            height: profileImageSize,
+            borderRadius: profileImageSize / 2,
             borderWidth: 3,
             borderColor: 'white',
           }}
@@ -45,7 +45,7 @@ const ProfileInfo: React.FC<ProfileInfoProps> = ({ profile, profileImageSize = 8
           numberOfLines={1}
           ellipsizeMode="tail"
         >
-          {profile?.full_name || 'Name not set'}
+          {profile?.full_name || profile?.full_name || 'Name not set'}
         </Text>
         
         <Text 

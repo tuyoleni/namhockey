@@ -268,7 +268,7 @@ const AddEventForm: React.FC<AddEventFormProps> = ({ currentUserId, onSuccess, o
                disabled={loadingEvents || loadingTeams}
              >
                {loadingEvents || loadingTeams ? (
-                 <ActivityIndicator color="#fff" />
+                 <ActivityIndicator />
                ) : (
                  <Text className="text-white text-lg font-semibold">Add Event</Text>
                )}
@@ -353,7 +353,7 @@ const AddEventForm: React.FC<AddEventFormProps> = ({ currentUserId, onSuccess, o
             <View className="bg-white rounded-t-xl p-5 w-full">
               <Text className="text-xl font-bold text-center mb-4">Select {selectingTeamType === 'home' ? 'Home' : 'Away'} Team</Text>
               {loadingTeams ? (
-                  <ActivityIndicator size="large" color="#007bff" className="my-5"/>
+                  <ActivityIndicator />
               ) : teamError ? (
                   <Text className="text-red-600 text-center my-5">{teamError}</Text>
               ) : teams.length === 0 ? (

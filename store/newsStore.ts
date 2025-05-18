@@ -1,194 +1,253 @@
-// src/store/newsStore.ts (or wherever you keep your stores)
-
 import { create } from 'zustand';
-import { supabase } from '@utils/superbase'; // Adjust the import path for your supabase client
-import { Database, Tables, TablesInsert, TablesUpdate } from 'types/database.types'; // Adjust the import path for your database types
+import { supabase } from '@utils/superbase'; // Ensure this path is correct
+import { Tables, TablesInsert, TablesUpdate } from 'types/database.types'; // Ensure this path is correct
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
-// Define the type for a news article row
-type NewsArticleRow = Tables<'news_articles'>;
+type ProfileRow = Tables<'profiles'>;
 
-// Define the state interface for the news store
+type NewsArticleRow = Tables<'news_articles'> & {
+  profiles: ProfileRow | null;
+};
+
 interface NewsState {
   newsArticles: NewsArticleRow[];
   loadingNews: boolean;
   error: string | null;
 }
 
-// Define the actions interface for the news store
 interface NewsActions {
+  fetchArticleById(articleId: string): Promise<NewsArticleRow | null>;
   fetchNewsArticles: () => Promise<void>;
   addNewsArticle: (articleData: TablesInsert<'news_articles'>) => Promise<NewsArticleRow | null>;
   updateNewsArticle: (articleId: string, articleData: TablesUpdate<'news_articles'>) => Promise<NewsArticleRow | null>;
   deleteNewsArticle: (articleId: string) => Promise<void>;
-  subscribeToNewsArticles: () => () => void; // Returns an unsubscribe function
+  subscribeToNewsArticles: () => () => void;
 }
 
-// Combine state and actions interfaces
 type NewsStore = NewsState & NewsActions;
 
 export const useNewsStore = create<NewsStore>((set, get) => ({
-  // Initial state
   newsArticles: [],
   loadingNews: false,
   error: null,
 
-  // Actions
+  fetchArticleById: async (articleId: string) => {
+    console.log(`Workspaceing article by ID: ${articleId} using FK name news_articles_author_profile_id_fkey`);
+    try {
+      const { data, error } = await supabase
+        .from('news_articles')
+        .select(`
+          *,
+          profiles!news_articles_author_profile_id_fkey(*)
+        `)
+        .eq('id', articleId)
+        .single();
 
-  /**
-   * Fetches all news articles from the database.
-   */
+      if (error) {
+        console.error(`Error fetching article by id ${articleId} (raw):`, error);
+        throw error;
+      }
+      console.log(`Workspaceed article by ID ${articleId}:`, data); // CHECK THIS LOG FOR 'profiles'
+      return data as NewsArticleRow | null;
+    } catch (e: any) {
+      console.error(`Error fetching article by id ${articleId} (catch):`, e.message);
+      return null;
+    }
+  },
+
   fetchNewsArticles: async () => {
+    console.log('Fetching all news articles using FK name news_articles_author_profile_id_fkey...');
     set({ loadingNews: true, error: null });
     try {
       const { data, error } = await supabase
         .from('news_articles')
-        .select('*') // Select all columns for news articles
-        .order('published_at', { ascending: false }); // Order by published date, newest first
+        .select(`
+          *,
+          profiles!news_articles_author_profile_id_fkey(*)
+        `)
+        .order('published_at', { ascending: false });
 
-      if (error) throw error;
-
-      set({ newsArticles: data || [], loadingNews: false });
+      if (error) {
+        console.error('Error fetching news articles (raw):', error);
+        throw error;
+      }
+      console.log('Fetched all news articles:', data); // CHECK THIS LOG FOR 'profiles'
+      set({ newsArticles: (data as NewsArticleRow[]) || [], loadingNews: false });
+      console.log('Current newsArticles state after fetchNewsArticles:', get().newsArticles);
     } catch (e: any) {
+      console.error('Error fetching news articles (catch):', e.message);
       set({ error: e.message || 'Failed to fetch news articles', loadingNews: false, newsArticles: [] });
-      console.error('Error fetching news articles:', e);
     }
   },
 
-  /**
-   * Adds a new news article to the database.
-   * @param articleData - The data for the new article.
-   * @returns The added article data, or null if an error occurred.
-   */
-  addNewsArticle: async (articleData) => {
+  addNewsArticle: async (articleData: TablesInsert<'news_articles'>) => {
+    console.log('Adding new news article:', articleData);
     try {
       const { data, error } = await supabase
         .from('news_articles')
         .insert(articleData)
-        .select('*') // Select the inserted row
-        .single(); // Expect a single result
+        .select(`
+          *,
+          profiles!news_articles_author_profile_id_fkey(*)
+        `)
+        .single();
 
-      if (error) throw error;
-
-      // Realtime subscription will handle updating the store state
+      if (error) {
+        console.error('Error adding news article (raw):', error);
+        throw error;
+      }
+      console.log('Added news article, response data:', data); // CHECK THIS LOG FOR 'profiles'
       return data as NewsArticleRow | null;
     } catch (e: any) {
+      console.error('Error adding news article (catch):', e.message);
       set({ error: e.message || 'Failed to add news article' });
-      console.error('Error adding news article:', e);
       return null;
     }
   },
 
-  /**
-   * Updates an existing news article in the database.
-   * @param articleId - The ID of the article to update.
-   * @param articleData - The updated data for the article.
-   * @returns The updated article data, or null if an error occurred.
-   */
-  updateNewsArticle: async (articleId, articleData) => {
+  updateNewsArticle: async (articleId: string, articleData: TablesUpdate<'news_articles'>) => {
+    console.log(`Updating news article ${articleId} with:`, articleData);
     try {
       const { data, error } = await supabase
         .from('news_articles')
         .update(articleData)
-        .eq('id', articleId) // Filter by article ID
-        .select('*') // Select the updated row
-        .single(); // Expect a single result
+        .eq('id', articleId)
+        .select(`
+          *,
+          profiles!news_articles_author_profile_id_fkey(*)
+        `)
+        .single();
 
-      if (error) throw error;
-
-      // Realtime subscription will handle updating the store state
+      if (error) {
+        console.error(`Error updating news article ${articleId} (raw):`, error);
+        throw error;
+      }
+      console.log(`Updated news article ${articleId}, response data:`, data); // CHECK THIS LOG FOR 'profiles'
       return data as NewsArticleRow | null;
     } catch (e: any) {
+      console.error(`Error updating news article ${articleId} (catch):`, e.message);
       set({ error: e.message || 'Failed to update news article' });
-      console.error('Error updating news article:', e);
       return null;
     }
   },
 
-  /**
-   * Deletes a news article from the database.
-   * @param articleId - The ID of the article to delete.
-   */
-  deleteNewsArticle: async (articleId) => {
+  deleteNewsArticle: async (articleId: string) => {
+    console.log(`Deleting news article ${articleId}`);
     try {
       const { error } = await supabase
         .from('news_articles')
         .delete()
-        .eq('id', articleId); // Filter by article ID
+        .eq('id', articleId);
 
-      if (error) throw error;
-
-      // Realtime subscription will handle removing the article from the store state
+      if (error) {
+        console.error(`Error deleting news article ${articleId} (raw):`, error);
+        throw error;
+      }
+      console.log(`Successfully deleted news article ${articleId}`);
     } catch (e: any) {
+      console.error(`Error deleting news article ${articleId} (catch):`, e.message);
       set({ error: e.message || 'Failed to delete news article' });
-      console.error('Error deleting news article:', e);
     }
   },
 
-  /**
-   * Subscribes to realtime changes in the 'news_articles' table.
-   * Updates the store state based on received changes.
-   * Returns an unsubscribe function.
-   */
   subscribeToNewsArticles: () => {
+    console.log('Attempting to subscribe to news articles changes...');
+    const sortArticles = (articles: NewsArticleRow[]): NewsArticleRow[] => {
+      return [...articles].sort((a, b) => {
+        const timeA = a.published_at ? new Date(a.published_at).getTime() : 0;
+        const timeB = b.published_at ? new Date(b.published_at).getTime() : 0;
+        return timeB - timeA;
+      });
+    };
+
     const channel = supabase
-      .channel('public-news-articles-realtime') // Unique channel name
-      .on<NewsArticleRow>(
+      .channel('public-news-articles-realtime')
+      .on<Tables<'news_articles'>>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'news_articles' },
-        (payload: RealtimePostgresChangesPayload<NewsArticleRow>) => {
-          console.log('News article change received!', payload);
-          const { eventType, new: newData, old: oldData } = payload;
+        async (payload: RealtimePostgresChangesPayload<Tables<'news_articles'>>) => {
+          console.log('Realtime: News article change received! Payload:', payload);
+          const { eventType, new: newRawData, old: oldData, errors } = payload;
 
-          set((state) => {
-            let updatedArticles = [...state.newsArticles];
+          if (errors) {
+            console.error('Realtime payload error:', errors);
+            return;
+          }
 
-            // Helper function to get published_at time value safely for sorting
-            const getPublishedAtValue = (article: NewsArticleRow): number => {
-               return article.published_at ? new Date(article.published_at).getTime() : 0; // Treat null as beginning
-            }
-
-            if (eventType === 'INSERT') {
-              // Add new article and keep sorted by published_at (newest first)
-              updatedArticles = [...updatedArticles, newData as NewsArticleRow].sort((a, b) =>
-                 getPublishedAtValue(b) - getPublishedAtValue(a) // Sort descending
-              );
-            } else if (eventType === 'UPDATE') {
-              // Find and update the article, then re-sort
-              updatedArticles = updatedArticles.map((article) =>
-                article.id === (newData as NewsArticleRow).id ? (newData as NewsArticleRow) : article
-              ).sort((a, b) =>
-                 getPublishedAtValue(b) - getPublishedAtValue(a) // Sort descending
-              );
-            } else if (eventType === 'DELETE') {
-              // Remove the deleted article
-              const oldId = (oldData as Partial<NewsArticleRow>)?.id;
-              if (oldId) {
-                updatedArticles = updatedArticles.filter((article) => article.id !== oldId);
+          if (eventType === 'INSERT') {
+            if (newRawData?.id) {
+              console.log(`Realtime INSERT detected for article ID: ${newRawData.id}. Raw data:`, newRawData);
+              console.log(`Realtime INSERT: Fetching article ${newRawData.id} with profile.`);
+              const newArticleWithProfile = await get().fetchArticleById(newRawData.id);
+              if (newArticleWithProfile) {
+                console.log(`Realtime INSERT: Fetched article ${newRawData.id} with profile:`, newArticleWithProfile);
+                set((state) => {
+                  const updatedArticles = sortArticles(
+                    [...state.newsArticles.filter(a => a.id !== newArticleWithProfile.id), newArticleWithProfile]
+                  );
+                  console.log('Realtime INSERT: Updated newsArticles state:', updatedArticles);
+                  return { newsArticles: updatedArticles };
+                });
+              } else {
+                console.warn(`Realtime INSERT: Article ${newRawData.id} fetched as null after event.`);
               }
             }
-
-            return { newsArticles: updatedArticles };
-          });
+          } else if (eventType === 'UPDATE') {
+            if (newRawData?.id) {
+              console.log(`Realtime UPDATE detected for article ID: ${newRawData.id}. Raw data:`, newRawData);
+              console.log(`Realtime UPDATE: Fetching article ${newRawData.id} with profile.`);
+              const updatedArticleWithProfile = await get().fetchArticleById(newRawData.id);
+              if (updatedArticleWithProfile) {
+                 console.log(`Realtime UPDATE: Fetched article ${newRawData.id} with profile:`, updatedArticleWithProfile);
+                set((state) => {
+                  const updatedArticles = sortArticles(
+                    state.newsArticles.map((article) =>
+                      article.id === updatedArticleWithProfile.id ? updatedArticleWithProfile : article
+                    )
+                  );
+                  console.log('Realtime UPDATE: Updated newsArticles state:', updatedArticles);
+                  return { newsArticles: updatedArticles };
+                });
+              } else {
+                 console.warn(`Realtime UPDATE: Article ${newRawData.id} fetched as null after event.`);
+              }
+            }
+          } else if (eventType === 'DELETE') {
+            const oldId = (oldData as Partial<Tables<'news_articles'>>)?.id;
+            if (oldId) {
+              console.log(`Realtime DELETE detected for article ID: ${oldId}. Old data:`, oldData);
+              set((state) => {
+                const updatedArticles = state.newsArticles.filter((article) => article.id !== oldId);
+                console.log('Realtime DELETE: Updated newsArticles state:', updatedArticles);
+                return { newsArticles: updatedArticles };
+              });
+            }
+          }
         }
       )
-      .subscribe((status, err) => {
+      .subscribe(async (status, err) => {
         if (err) {
-          console.error('Error subscribing to news articles channel:', err);
-          set({ error: `Subscription error: ${err.message}` });
+          console.error('Error subscribing to news articles channel:', err ? err.message : 'Unknown subscription error');
+          set({ error: `Subscription error: ${err ? err.message : 'Unknown error'}` });
         } else {
            console.log('Subscribed to news articles channel with status:', status);
-           // Optionally fetch initial data if subscription is successful and store is empty
-           if (status === 'SUBSCRIBED' && get().newsArticles.length === 0 && !get().loadingNews) {
-               get().fetchNewsArticles();
+           if (status === 'SUBSCRIBED') {
+             const currentStore = get();
+             if (currentStore.newsArticles.length === 0 && !currentStore.loadingNews && !currentStore.error) {
+                 console.log("Subscription active, store empty, no loading, no error. Fetching initial news articles.");
+                 await currentStore.fetchNewsArticles();
+             }
            }
         }
       });
 
     return () => {
-      // Unsubscribe from the channel when the component using the store unmounts
-      supabase.removeChannel(channel);
-      console.log('Unsubscribed from news articles channel');
+      console.log('Unsubscribing from news articles channel.');
+      if (channel) {
+        supabase.removeChannel(channel)
+          .then(() => console.log('Successfully unsubscribed from news articles channel'))
+          .catch(e => console.error('Error unsubscribing from news articles channel:', e.message));
+      }
     };
   },
 }));

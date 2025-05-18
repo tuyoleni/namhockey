@@ -45,7 +45,7 @@ const RegistrationList: React.FC<RegistrationListProps> = ({ eventId }) => {
   if (loadingRegistrations) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#007bff" />
+        <ActivityIndicator />
         <Text>Loading registrations...</Text>
       </View>
     );

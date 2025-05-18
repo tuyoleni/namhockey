@@ -12,7 +12,7 @@ const MediaPostList: React.FC = () => {
   if (loadingMedia) {
     return (
       <View style={minimalStyles.centered}>
-        <ActivityIndicator size="large" color="#007bff" />
+        <ActivityIndicator />
         <Text style={minimalStyles.loadingText}>Loading media posts...</Text>
       </View>
     );

@@ -16,7 +16,7 @@ const UpcomingMatches: React.FC = () => {
   if (loadingEvents) {
     return (
       <View style={minimalStyles.centered}>
-        <ActivityIndicator size="large" color="#007bff" />
+        <ActivityIndicator />
         <Text style={minimalStyles.loadingText}>Loading upcoming matches...</Text>
       </View>
     );

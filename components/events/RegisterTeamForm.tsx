@@ -67,7 +67,7 @@ const RegisterTeamForm: React.FC<RegisterTeamFormProps> = ({ eventId, onSuccess,
       </View>
 
 
-      {loadingRegistrations && <ActivityIndicator size="small" color="#007bff" />}
+      {loadingRegistrations && <ActivityIndicator />}
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );

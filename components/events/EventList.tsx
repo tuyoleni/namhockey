@@ -34,7 +34,7 @@ const EventList: React.FC<EventListProps> = ({
   if (loadingEvents) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#007bff" />
+        <ActivityIndicator  />
         <Text>Loading events...</Text>
       </View>
     );

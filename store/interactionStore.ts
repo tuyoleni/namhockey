@@ -7,12 +7,16 @@ import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 // Define the types for likes and comments rows
 type LikeRow = Tables<'likes'>;
-type CommentRow = Tables<'comments'>;
+// Update CommentRow to potentially include profile information
+type CommentRow = Tables<'comments'> & {
+  profiles?: Pick<Tables<'profiles'>, 'id' | 'bio' | 'profile_picture'> | null; // Or all fields if you add them
+};
+
 
 // Define the state interface for the interaction store
 interface InteractionState {
-  likes: LikeRow[]; // Store all likes, or filter as needed
-  comments: CommentRow[]; // Store all comments, or filter as needed
+  likes: LikeRow[];
+  comments: CommentRow[]; // Use the updated CommentRow
   loadingLikes: boolean;
   loadingComments: boolean;
   error: string | null;
@@ -20,32 +24,28 @@ interface InteractionState {
 
 // Define the actions interface for the interaction store
 interface InteractionActions {
-  // Likes actions
   fetchLikesForPost: (postId: string) => Promise<LikeRow[]>;
   likePost: (postId: string, userId: string) => Promise<LikeRow | null>;
   unlikePost: (postId: string, userId: string) => Promise<void>;
-  isPostLikedByUser: (postId: string, userId: string) => boolean; // Check if a specific post is liked by a user
-  subscribeToLikes: () => () => void; // Subscribe to all like changes
+  isPostLikedByUser: (postId: string, userId: string) => boolean;
+  subscribeToLikes: () => () => void;
 
-  // Comments actions
   fetchCommentsForPost: (postId: string) => Promise<CommentRow[]>;
-  addCommentToPost: (commentData: TablesInsert<'comments'>) => Promise<CommentRow | null>;
+  addCommentToPost: (commentData: TablesInsert<'comments'>) => Promise<CommentRow | null>; // Return type might need profile too if consistency is key
   deleteComment: (commentId: string) => Promise<void>;
-  subscribeToComments: (postId?: string) => () => void; // Subscribe to comment changes, optionally filtered by post
+  subscribeToComments: (postId?: string) => () => void;
 }
 
-// Combine state and actions interfaces
 type InteractionStore = InteractionState & InteractionActions;
 
 export const useInteractionStore = create<InteractionStore>((set, get) => ({
-  // Initial state
   likes: [],
   comments: [],
   loadingLikes: false,
   loadingComments: false,
   error: null,
 
-  // Actions
+  // ... (like actions remain the same) ...
 
   // --- Likes ---
 
@@ -60,16 +60,15 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
       const { data, error } = await supabase
         .from('likes')
         .select('*')
-        .eq('post_id', postId) // Filter by post ID
-        .order('created_at', { ascending: true }); // Order by creation time
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
-      // Update the store's likes state, ensuring no duplicates for this post
       set((state) => ({
         likes: [
-          ...state.likes.filter(like => like.post_id !== postId), // Remove old likes for this post
-          ...(data || []) // Add new ones
+          ...state.likes.filter(like => like.post_id !== postId),
+          ...(data || [])
         ],
         loadingLikes: false
       }));
@@ -92,18 +91,14 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
       const { data, error } = await supabase
         .from('likes')
         .insert([{ post_id: postId, user_id: userId }])
-        .select('*') // Select the inserted row
-        .single(); // Expect a single result
+        .select('*')
+        .single();
 
       if (error) throw error;
-
-      // Realtime subscription will handle updating the store state if active
       return data as LikeRow | null;
     } catch (e: any) {
-      // Handle potential duplicate key errors gracefully (user already liked)
-      if (e.code === '23505') { // Unique violation error code in PostgreSQL
+      if (e.code === '23505') {
          console.warn('User already liked this post.');
-         // Optionally fetch the existing like to return it
          const existingLike = get().likes.find(like => like.post_id === postId && like.user_id === userId);
          return existingLike || null;
       }
@@ -123,12 +118,10 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
       const { error } = await supabase
         .from('likes')
         .delete()
-        .eq('post_id', postId) // Filter by post ID
-        .eq('user_id', userId); // Filter by user ID
+        .eq('post_id', postId)
+        .eq('user_id', userId);
 
       if (error) throw error;
-
-      // Realtime subscription will handle removing the like from the store state if active
     } catch (e: any) {
       set({ error: e.message || 'Failed to unlike post' });
       console.error('Error unliking post:', e);
@@ -142,7 +135,6 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
    * @returns True if the post is liked by the user, false otherwise.
    */
   isPostLikedByUser: (postId: string, userId: string): boolean => {
-    // Check the current state for a like by this user for this post
     return get().likes.some(like => like.post_id === postId && like.user_id === userId);
   },
 
@@ -153,11 +145,11 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     */
    subscribeToLikes: () => {
      const channel = supabase
-       .channel('public-likes-realtime') // Unique channel name
-       .on<LikeRow>(
+       .channel('public-likes-realtime')
+       .on<Tables<'likes'>>( // Use Tables<'likes'> here for payload type
          'postgres_changes',
          { event: '*', schema: 'public', table: 'likes' },
-         (payload: RealtimePostgresChangesPayload<LikeRow>) => {
+         (payload: RealtimePostgresChangesPayload<Tables<'likes'>>) => { // Adjust payload type
            console.log('Like change received!', payload);
            const { eventType, new: newData, old: oldData } = payload;
 
@@ -165,18 +157,13 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
              let updatedLikes = [...state.likes];
 
              if (eventType === 'INSERT') {
-               // Add new like
                updatedLikes = [...updatedLikes, newData as LikeRow];
              } else if (eventType === 'DELETE') {
-               // Remove the deleted like
                const oldId = (oldData as Partial<LikeRow>)?.id;
                if (oldId) {
                  updatedLikes = updatedLikes.filter((like) => like.id !== oldId);
                }
              }
-             // Note: Updates to likes are less common (maybe timestamp changes),
-             // but the default handling would replace the item if needed.
-
              return { likes: updatedLikes };
            });
          }
@@ -187,46 +174,39 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
            set({ error: `Subscription error: ${err.message}` });
          } else {
             console.log('Subscribed to likes channel with status:', status);
-            // Note: We don't auto-fetch all likes here, as it could be a large dataset.
-            // Likes are typically fetched for specific posts when needed.
          }
        });
-
      return () => {
-       // Unsubscribe from the channel
        supabase.removeChannel(channel);
        console.log('Unsubscribed from likes channel');
      };
    },
 
-
   // --- Comments ---
-
-  /**
-   * Fetches comments for a specific news post.
-   * @param postId - The ID of the news post.
-   * @returns An array of CommentRow objects.
-   */
   fetchCommentsForPost: async (postId: string) => {
     set({ loadingComments: true, error: null });
     try {
+      // MODIFIED: Select comment data and related profile data.
+      // Assumes 'user_id' in 'comments' table is the FK to 'profiles' table's 'id'.
+      // And your FK constraint allows Supabase to infer this join as 'profiles'.
+      // Or, be explicit: profiles!comments_user_id_fkey(id, bio, profile_picture)
+      // If your 'profiles' table gets 'full_name', 'username', add them here.
       const { data, error } = await supabase
         .from('comments')
-        .select('*') // Select all columns for comments
-        .eq('post_id', postId) // Filter by post ID
-        .order('created_at', { ascending: true }); // Order by creation time
+        .select('*, profiles(id, bio, profile_picture)') // Or specific FK name
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
-       // Update the store's comments state, ensuring no duplicates for this post
       set((state) => ({
         comments: [
-          ...state.comments.filter(comment => comment.post_id !== postId), // Remove old comments for this post
-          ...(data || []) // Add new ones
+          ...state.comments.filter(comment => comment.post_id !== postId),
+          ...(data as CommentRow[] || []) // Cast to updated CommentRow
         ],
         loadingComments: false
       }));
-      return data || [];
+      return data as CommentRow[] || [];
     } catch (e: any) {
       set({ error: e.message || 'Failed to fetch comments', loadingComments: false });
       console.error('Error fetching comments:', e);
@@ -234,22 +214,17 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     }
   },
 
-  /**
-   * Adds a new comment to a news post.
-   * @param commentData - The data for the new comment (must include post_id and user_id).
-   * @returns The created CommentRow object, or null if an error occurred.
-   */
   addCommentToPost: async (commentData: TablesInsert<'comments'>) => {
     try {
+      // If you want the returned comment to also have profile info, you'd need a more complex insert
+      // or a subsequent fetch. For now, it returns the basic comment.
       const { data, error } = await supabase
         .from('comments')
         .insert([commentData])
-        .select('*') // Select the inserted row
-        .single(); // Expect a single result
+        .select('*, profiles(id, bio, profile_picture)') // Fetch profile after insert
+        .single();
 
       if (error) throw error;
-
-      // Realtime subscription will handle updating the store state if active
       return data as CommentRow | null;
     } catch (e: any) {
       set({ error: e.message || 'Failed to add comment' });
@@ -258,77 +233,63 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     }
   },
 
-  /**
-   * Deletes a comment by its ID.
-   * @param commentId - The ID of the comment to delete.
-   */
   deleteComment: async (commentId: string) => {
     try {
       const { error } = await supabase
         .from('comments')
         .delete()
-        .eq('id', commentId); // Filter by comment ID
-
+        .eq('id', commentId);
       if (error) throw error;
-
-      // Realtime subscription will handle removing the comment from the store state if active
     } catch (e: any) {
       set({ error: e.message || 'Failed to delete comment' });
       console.error('Error deleting comment:', e);
     }
   },
 
-   /**
-    * Subscribes to realtime changes in the 'comments' table.
-    * Optionally filters by post ID.
-    * Updates the store state based on received changes.
-    * Returns an unsubscribe function.
-    * @param postId - Optional. If provided, filters changes to this post's comments.
-    */
-   subscribeToComments: (postId?: string) => {
+  subscribeToComments: (postId?: string) => {
      const channelName = postId
-       ? `public-comments-realtime-${postId}` // Unique channel name per post
-       : 'public-comments-realtime-all'; // Channel for all comments
-
-     const filter = postId ? `post_id=eq.${postId}` : undefined; // Apply filter if postId is provided
+       ? `public-comments-realtime-${postId}`
+       : 'public-comments-realtime-all';
+     const filter = postId ? `post_id=eq.${postId}` : undefined;
 
      const channel = supabase
        .channel(channelName)
-       .on<CommentRow>(
+       .on<Tables<'comments'>>( // Base type for payload
          'postgres_changes',
-         { event: '*', schema: 'public', table: 'comments', filter }, // Apply the filter
-         (payload: RealtimePostgresChangesPayload<CommentRow>) => {
+         { event: '*', schema: 'public', table: 'comments', filter },
+         async (payload: RealtimePostgresChangesPayload<Tables<'comments'>>) => { // Use base type
            console.log('Comment change received!', payload);
-           const { eventType, new: newData, old: oldData } = payload;
+           const { eventType, new: newRawData, old: oldData } = payload;
 
            set((state) => {
              let updatedComments = [...state.comments];
-
-             // Helper function to get created_at time value safely for sorting
              const getCreatedAtValue = (comment: CommentRow): number => {
-                return comment.created_at ? new Date(comment.created_at).getTime() : 0; // Treat null as beginning
+                return comment.created_at ? new Date(comment.created_at).getTime() : 0;
              }
 
-             if (eventType === 'INSERT') {
-               // Add new comment and keep sorted by created_at
-               updatedComments = [...updatedComments, newData as CommentRow].sort((a, b) =>
+             // For INSERT/UPDATE, the newRawData won't have the 'profiles' object yet.
+             // A full solution for realtime would require re-fetching the comment with its profile,
+             // or your backend sending the enriched data.
+             // This simplified version handles the raw comment data.
+
+             if (eventType === 'INSERT' && newRawData) {
+               // Ideally, fetch newRawData.id with its profile here for consistency
+               const newComment = { ...newRawData } as CommentRow; // May lack .profiles initially
+               updatedComments = [...updatedComments, newComment].sort((a, b) =>
                  getCreatedAtValue(a) - getCreatedAtValue(b)
                );
-             } else if (eventType === 'UPDATE') {
-               // Find and update the comment, then re-sort
+             } else if (eventType === 'UPDATE' && newRawData) {
                updatedComments = updatedComments.map((comment) =>
-                 comment.id === (newData as CommentRow).id ? (newData as CommentRow) : comment
+                 comment.id === newRawData.id ? ({ ...comment, ...newRawData } as CommentRow) : comment // Preserve existing .profiles if any
                ).sort((a, b) =>
                  getCreatedAtValue(a) - getCreatedAtValue(b)
                );
              } else if (eventType === 'DELETE') {
-               // Remove the deleted comment
-               const oldId = (oldData as Partial<CommentRow>)?.id;
+               const oldId = (oldData as Partial<Tables<'comments'>>)?.id;
                if (oldId) {
                  updatedComments = updatedComments.filter((comment) => comment.id !== oldId);
                }
              }
-
              return { comments: updatedComments };
            });
          }
@@ -339,19 +300,15 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
            set({ error: `Subscription error (${channelName}): ${err.message}` });
          } else {
             console.log(`Subscribed to ${channelName} channel with status:`, status);
-            // Optionally fetch initial data if subscription is successful and a postId is provided
             if (status === 'SUBSCRIBED' && postId && !get().loadingComments) {
-                // Check if comments for this post are already loaded to avoid redundant fetches
-                const hasCommentsForPost = get().comments.some(comment => comment.post_id === postId);
+                const hasCommentsForPost = get().comments.some(comment => comment.post_id === postId && comment.profiles); // Check if profiles are loaded
                 if (!hasCommentsForPost) {
-                    get().fetchCommentsForPost(postId);
+                    get().fetchCommentsForPost(postId); // This will fetch with profiles
                 }
             }
          }
        });
-
      return () => {
-       // Unsubscribe from the channel
        supabase.removeChannel(channel);
        console.log(`Unsubscribed from ${channelName} channel`);
      };

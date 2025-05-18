@@ -212,7 +212,7 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
           <View className="flex-row justify-between items-center p-4 border-b border-gray-200">
             <Text className="text-xl font-bold text-gray-800">{teamDetails?.name || 'Team Details'}</Text>
             <TouchableOpacity onPress={onClose} className="p-1">
-              <X size={28} color="gray" /> {/* Changed from XMarkIcon */}
+              <X size={28} color="gray" />
             </TouchableOpacity>
           </View>
 

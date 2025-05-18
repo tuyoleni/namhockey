@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, TextInput } from 'react-native';
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    ActivityIndicator,
+    Alert,
+    TextInput,
+    KeyboardAvoidingView,
+    Platform,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-
-import { useMediaStore } from 'store/mediaStore';
 import { PlusSquare } from 'lucide-react-native';
-import { minimalStyles } from './minimalStyles';
+import { useMediaStore } from 'store/mediaStore';
 
 interface MediaPostUploadProps {
     currentUserId: string;
@@ -15,134 +22,109 @@ const MediaPostUpload: React.FC<MediaPostUploadProps> = ({ currentUserId }) => {
     const { uploadMediaPost, error: mediaError } = useMediaStore();
     const [isUploading, setUploadingMedia] = useState(false);
 
-
     const requestPermissions = async () => {
-        const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-        if (mediaStatus !== 'granted') {
-            Alert.alert('Permission Required', 'Please grant access to your media library to upload photos or videos.');
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission Required', 'Media access is needed to upload.');
             return false;
         }
         return true;
     };
 
-    const uriToBlob = (uri: string): Promise<Blob> => {
-        return new Promise((resolve, reject) => {
+    const uriToBlob = (uri: string): Promise<Blob> =>
+        new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            xhr.onload = function () {
-                resolve(xhr.response);
-            };
-            xhr.onerror = function () {
-                reject(new Error(`uriToBlob failed for URI: ${uri}`));
-            };
+            xhr.onload = () => resolve(xhr.response);
+            xhr.onerror = () => reject(new Error('Failed to convert URI to Blob'));
             xhr.responseType = 'blob';
             xhr.open('GET', uri, true);
             xhr.send(null);
         });
-    };
-
 
     const handleUpload = async (mediaType: 'image' | 'video') => {
-        const hasPermission = await requestPermissions();
-        if (!hasPermission) return;
+        const permission = await requestPermissions();
+        if (!permission) return;
 
-        let result;
+        const pickerResult = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes:
+                mediaType === 'image'
+                    ? ImagePicker.MediaTypeOptions.Images
+                    : ImagePicker.MediaTypeOptions.Videos,
+            allowsEditing: true,
+            quality: 1,
+        });
+
+        if (pickerResult.canceled || !pickerResult.assets?.[0]) return;
+
+        const asset = pickerResult.assets[0];
+        setUploadingMedia(true);
+
         try {
-            if (mediaType === 'image') {
-                result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    allowsEditing: true,
-                    aspect: [4, 3],
-                    quality: 1,
-                });
+            const blob = await uriToBlob(asset.uri);
+            if (blob.size === 0) throw new Error('File is empty');
+
+            const success = await uploadMediaPost({
+                userId: currentUserId,
+                type: mediaType,
+                file: blob,
+                caption,
+            });
+
+            if (success) {
+                Alert.alert('Success', `${mediaType} uploaded`);
+                setCaption('');
             } else {
-                 result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-                    allowsEditing: true,
-                    quality: 1,
-                });
+                Alert.alert('Upload Failed', mediaError || 'Upload error');
             }
-        } catch (pickerError: any) {
-             console.error('Error picking media:', pickerError);
-             Alert.alert('Media Picking Error', `Failed to pick media: ${pickerError.message}`);
-             return;
-        }
-
-
-        if (!result.canceled && result.assets && result.assets.length > 0) {
-            const asset = result.assets[0];
-            const uri = asset.uri;
-            const fileType = asset.type;
-            const mimeType = asset.mimeType || 'application/octet-stream';
-
-            setUploadingMedia(true);
-
-            try {
-                const fileToUpload = await uriToBlob(uri);
-
-                 if (fileToUpload.size === 0) {
-                     throw new Error('Created Blob is empty (0KB). Cannot upload.');
-                 }
-
-                const uploadedPost = await uploadMediaPost({
-                    userId: currentUserId,
-                    type: fileType as 'image' | 'video',
-                    file: fileToUpload,
-                    caption: caption,
-                });
-
-                if (uploadedPost) {
-                    Alert.alert('Success', `${fileType === 'image' ? 'Image' : 'Video'} uploaded successfully!`);
-                    setCaption('');
-                } else {
-                     Alert.alert('Upload Failed', mediaError || `Failed to upload ${fileType}. Check console for details.`);
-                }
-            } catch (e: any) {
-                 console.error('Error preparing or uploading file:', e);
-                 Alert.alert('Upload Error', `An error occurred during upload preparation: ${e.message}`);
-            } finally {
-                 setUploadingMedia(false);
-            }
-
-        } else {
-            console.log('Media picking cancelled or failed.');
+        } catch (e: any) {
+            Alert.alert('Error', e.message);
+        } finally {
             setUploadingMedia(false);
         }
     };
 
-
     return (
-        <View style={minimalStyles.contentWrapper}>
-            {/* Removed section title here, as it's handled in the modal content */}
-            <TextInput
-                style={minimalStyles.captionInput}
-                placeholder="Add a caption (optional)"
-                placeholderTextColor="#8e8e93"
-                value={caption}
-                onChangeText={setCaption}
-                multiline
-            />
-            <View style={minimalStyles.uploadButtonsContainer}>
-                <TouchableOpacity
-                    onPress={() => handleUpload('image')}
-                    style={minimalStyles.uploadButton}
-                    disabled={isUploading}
-                >
-                    <PlusSquare size={24} color={isUploading ? "#ccc" : "#007bff"} />
-                    <Text style={[minimalStyles.uploadButtonText, isUploading && { color: '#ccc' }]}>Upload Image</Text>
-                </TouchableOpacity>
-                 <TouchableOpacity
-                    onPress={() => handleUpload('video')}
-                    style={minimalStyles.uploadButton}
-                    disabled={isUploading}
-                >
-                    <PlusSquare size={24} color={isUploading ? "#ccc" : "#007bff"} />
-                    <Text style={[minimalStyles.uploadButtonText, isUploading && { color: '#ccc' }]}>Upload Video</Text>
-                 </TouchableOpacity>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            className="px-4"
+        >
+            <View className="space-y-4">
+                <TextInput
+                    className="border border-gray-300 rounded-xl p-3 text-base text-gray-800 bg-white"
+                    placeholder="Add a caption (optional)"
+                    placeholderTextColor="#8e8e93"
+                    value={caption}
+                    onChangeText={setCaption}
+                    multiline
+                />
+
+                <View className="flex-row justify-between">
+                    <TouchableOpacity
+                        onPress={() => handleUpload('image')}
+                        className="flex-row items-center gap-2 px-4 py-2 bg-blue-100 rounded-xl"
+                        disabled={isUploading}
+                    >
+                        <PlusSquare size={20} color={isUploading ? '#ccc' : '#007bff'} />
+                        <Text className={`text-sm ${isUploading ? 'text-gray-400' : 'text-blue-600'}`}>
+                            Upload Image
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => handleUpload('video')}
+                        className="flex-row items-center gap-2 px-4 py-2 bg-blue-100 rounded-xl"
+                        disabled={isUploading}>
+                        <PlusSquare size={20} color={isUploading ? '#ccc' : '#007bff'} />
+                        <Text className={`text-sm ${isUploading ? 'text-gray-400' : 'text-blue-600'}`}>
+                            Upload Video
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {isUploading && <ActivityIndicator className="mt-2" />}
+                {mediaError && <Text className="text-red-500 text-sm">{mediaError}</Text>}
             </View>
-            {isUploading && <ActivityIndicator />}
-             {mediaError && <Text style={minimalStyles.errorText}>{mediaError}</Text>}
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 

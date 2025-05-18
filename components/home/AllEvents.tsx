@@ -11,14 +11,14 @@ const AllEvents: React.FC = () => {
     .filter(event => event.event_type === 'Match' || event.event_type === 'Tournament')
     .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-  if (loadingEvents) {
-    return (
-      <View style={minimalStyles.centered}>
-        <ActivityIndicator />
-        <Text style={minimalStyles.loadingText}>Loading events...</Text>
-      </View>
-    );
-  }
+//   if (loadingEvents) {
+//     return (
+//       <View style={minimalStyles.centered}>
+//         <ActivityIndicator />
+//         <Text style={minimalStyles.loadingText}>Loading events...</Text>
+//       </View>
+//     );
+//   }
 
   if (eventError) {
     return (
@@ -31,7 +31,7 @@ const AllEvents: React.FC = () => {
   if (sortedEvents.length === 0) {
     return (
       <View style={minimalStyles.contentWrapper}>
-        <Text style={minimalStyles.noDataText}>No events found.</Text>
+        {/* <Text style={minimalStyles.noDataText}>No events found.</Text> */}
       </View>
     );
   }

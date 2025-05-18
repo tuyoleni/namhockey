@@ -9,7 +9,8 @@ import {
   Modal,
   Animated,
   NativeScrollEvent,
-  StatusBar
+  StatusBar,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useNewsStore } from 'store/newsStore';
@@ -123,7 +124,7 @@ const HomeScreen: React.FC = () => {
       case 'Events':
         return <AllEvents />;
       case 'News':
-        return <NewsFeed />;
+        return <NewsFeed />; // DO NOT WRAP this with ScrollView!
       case 'Media':
         return <MediaPostList />;
       default:
@@ -131,12 +132,15 @@ const HomeScreen: React.FC = () => {
     }
   };
 
+  const shouldWrapInScrollView = activeTab !== 'News'; // NewsFeed handles its own scroll
+
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
-      
-      <Animated.View 
-        style={{ 
+
+      {/* Animated Tab Bar */}
+      <Animated.View
+        style={{
           transform: [{ translateY: isTabBarVisible ? 0 : -tabBarHeight }],
           position: 'absolute',
           top: 0,
@@ -152,45 +156,45 @@ const HomeScreen: React.FC = () => {
         }}
       >
         <View className="flex-row justify-around bg-white border-b border-gray-200">
-          <TouchableOpacity
-            className={`flex-1 items-center py-3 ${activeTab === 'Events' ? 'border-b-2 border-[#007AFF]' : ''}`}
-            onPress={() => setActiveTab('Events')}
-          >
-            <Text className={`text-sm ${activeTab === 'Events' ? 'font-bold text-[#007AFF]' : 'text-gray-600'}`}>Events</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className={`flex-1 items-center py-3 ${activeTab === 'News' ? 'border-b-2 border-[#007AFF]' : ''}`}
-            onPress={() => setActiveTab('News')}
-          >
-            <Text className={`text-sm ${activeTab === 'News' ? 'font-bold text-[#007AFF]' : 'text-gray-600'}`}>News</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className={`flex-1 items-center py-3 ${activeTab === 'Media' ? 'border-b-2 border-[#007AFF]' : ''}`}
-            onPress={() => setActiveTab('Media')}
-          >
-            <Text className={`text-sm ${activeTab === 'Media' ? 'font-bold text-[#007AFF]' : 'text-gray-600'}`}>Media</Text>
-          </TouchableOpacity>
+          {(['Events', 'News', 'Media'] as Tab[]).map(tab => (
+            <TouchableOpacity
+              key={tab}
+              className={`flex-1 items-center py-3 ${activeTab === tab ? 'border-b-2 border-[#007AFF]' : ''}`}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text className={`text-sm ${activeTab === tab ? 'font-bold text-[#007AFF]' : 'text-gray-600'}`}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </Animated.View>
 
-      <Animated.ScrollView
-        className="flex-1 bg-gray-100"
-        contentContainerStyle={{ paddingTop: tabBarHeight }}
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            colors={["#007AFF"]}
-            tintColor="#007AFF"
-            progressViewOffset={tabBarHeight}
-          />
-        }
-      >
-        {renderTabContent()}
-        <View className="h-20" /> 
-      </Animated.ScrollView>
+      {shouldWrapInScrollView ? (
+        <Animated.ScrollView
+          className="flex-1 bg-gray-100"
+          contentContainerStyle={{ paddingTop: tabBarHeight }}
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={["#007AFF"]}
+              tintColor="#007AFF"
+              progressViewOffset={tabBarHeight}
+            />
+          }
+        >
+          {renderTabContent()}
+          <View className="h-20" />
+        </Animated.ScrollView>
+      ) : (
+        // Render NewsFeed without ScrollView
+        <View className="flex-1 pt-[44px] bg-gray-100">
+          {renderTabContent()}
+        </View>
+      )}
 
       {authUser && (
         <TouchableOpacity
@@ -208,6 +212,7 @@ const HomeScreen: React.FC = () => {
         </TouchableOpacity>
       )}
 
+      {/* Upload Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -225,9 +230,9 @@ const HomeScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView className="flex-1 px-5">
-              {authUser && <MediaPostUpload currentUserId={authUser.id} />}
-            </ScrollView>
+
+            {authUser && <MediaPostUpload currentUserId={authUser.id} />}
+
           </View>
         </View>
       </Modal>

@@ -449,6 +449,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          is_public: boolean | null
           logo_url: string | null
           manager_id: string | null
           name: string
@@ -458,6 +459,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_public?: boolean | null
           logo_url?: string | null
           manager_id?: string | null
           name: string
@@ -467,6 +469,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_public?: boolean | null
           logo_url?: string | null
           manager_id?: string | null
           name?: string

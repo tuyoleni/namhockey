@@ -7,30 +7,13 @@ A mobile application developed for the **Namibia Hockey Union** to facilitate te
 - 🎨 Styled using **Nativewind + NativewindUI**
 - ⚙️ Real-time features and native menus with **Supabase Realtime** and **Zeego**
 
----
 
-## 📚 Table of Contents
-
-1. [Repository](#repository)  
-2. [Team Members](#team-members)  
-3. [Introduction](#introduction)  
-4. [Objectives](#objectives)  
-5. [Technology Stack](#technology-stack)  
-6. [Architecture Overview](#architecture-overview)  
-7. [Functional Requirements](#functional-requirements)  
-8. [UI & Navigation](#ui--navigation)  
-9. [Team Responsibilities](#team-responsibilities)  
-10. [Development Roadmap](#development-roadmap)  
-11. [Testing & QA](#testing--qa)  
-12. [Useful Links](#useful-links)  
-
----
 
 ## 📦 Repository
 
 **GitHub:** [https://github.com/tuyoleni/namhockey.git](https://github.com/tuyoleni/namhockey.git)   
 
----
+
 
 ## 👥 Team Members
 
@@ -43,13 +26,13 @@ A mobile application developed for the **Namibia Hockey Union** to facilitate te
 | Tashinga Mataranyika   | 220076618      | Full-Time      | Backend, Some Frontend       |
 | Lorraine Mwoyounotsva  | 222119578      | Full-Time      | Frontend, Some Backend      |
 
----
+
 
 ## 📖 Introduction
 
 The Namibia Hockey Mobile App is designed to enhance engagement and streamline the operations of the Namibia Hockey Union. It enables teams and players to register, manage profiles, enroll in events, and receive real-time notifications.
 
----
+
 
 ## 🎯 Objectives
 
@@ -59,7 +42,7 @@ The Namibia Hockey Mobile App is designed to enhance engagement and streamline t
 - **Live Communication** – Real-time updates, alerts, and push notifications.
 - **Unified UI/UX** – Smooth, consistent interface across Android, iOS, and Web.
 
----
+
 
 ## 🧱 Technology Stack
 
@@ -74,7 +57,7 @@ The Namibia Hockey Mobile App is designed to enhance engagement and streamline t
 | Menus          | Zeego                         | Cross-platform dropdown/context menu support      |
 | Animations     | Reanimated                    | Smooth gestures and transitions                   |
 
----
+
 
 ## 📐 Architecture Overview
 
@@ -89,7 +72,7 @@ The Namibia Hockey Mobile App is designed to enhance engagement and streamline t
 - Supabase for database, authentication, and real-time updates
 - Tables: Teams, Players, Events, Registrations, Notifications
 
----
+
 
 ## ✅ Functional Requirements
 
@@ -109,7 +92,7 @@ The Namibia Hockey Mobile App is designed to enhance engagement and streamline t
 - Live scores and schedule updates via Supabase subscriptions
 - In-app alerts using Zeego menus
 
----
+
 
 ## 🧭 UI & Navigation
 
@@ -121,7 +104,7 @@ The Namibia Hockey Mobile App is designed to enhance engagement and streamline t
 - Responsive, modern UI using Nativewind and Zeego
 - Menu customizations for alerts and actions
 
----
+
 
 ## 👷 Team Responsibilities
 
@@ -136,7 +119,7 @@ The Namibia Hockey Mobile App is designed to enhance engagement and streamline t
 - Manage roles, permissions, and auth logic
 - Implement real-time subscriptions and secure APIs
 
----
+
 
 ## 🗺️ Development Roadmap
 
@@ -145,14 +128,14 @@ The Namibia Hockey Mobile App is designed to enhance engagement and streamline t
 | Setup & Planning    | Define roles, features, repo setup                     | All         |
 | Environment Setup   | Configure Expo and Supabase, install dependencies      | All         |
 | Auth Implementation | Supabase login, registration, role-based redirects     | All         |
-| DB Schema Design    | Create Supabase tables (Teams, Events, etc.)           | Backend     |
-| Navigation Setup    | Expo Router & Bottom Tabs                              | Frontend    |
-| UI Development      | Home, Events, Teams, Profile screens                   | Frontend    |
-| Realtime Features   | Supabase subscriptions for updates                     | Backend     |
+| DB Schema Design    | Create Supabase tables (Teams, Events, etc.)           | All         |
+| Navigation Setup    | Expo Router & Bottom Tabs                              | All         |
+| UI Development      | Home, Events, Teams, Profile screens                   | All         |
+| Realtime Features   | Supabase subscriptions for updates                     | All         |
 | Alerts & Feedback   | In-app alerts with Zeego, push notifications (Expo)    | All         |
 | Testing & QA        | Form validations, role testing, cross-platform checks  | All         |
 
----
+
 
 ## 🧪 Testing & QA
 
@@ -161,7 +144,7 @@ The Namibia Hockey Mobile App is designed to enhance engagement and streamline t
 - Test Supabase real-time data updates
 - Ensure cross-platform compatibility (iOS, Android, Web)
 
----
+
 
 ## 🔗 Useful Links
 

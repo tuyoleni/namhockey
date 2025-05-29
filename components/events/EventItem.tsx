@@ -65,12 +65,10 @@ const EventItem: React.FC<EventItemProps> = ({
     }
   };
 
-  // Get text color based on event type (for dark backgrounds)
   const getTextColor = () => {
     return 'text-white';
   };
 
-  // Get status color
   const getStatusColor = () => {
     switch (event.status?.toLowerCase()) {
       case 'upcoming':

@@ -6,12 +6,13 @@ import {
   RefreshControl,
   TouchableOpacity,
   SafeAreaView,
-  Modal,
   Animated,
   NativeScrollEvent,
   StatusBar,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
+import Modal from 'react-native-modal';
 import { useRouter } from 'expo-router';
 import { useNewsStore } from 'store/newsStore';
 import { useEventStore } from 'store/eventStore';
@@ -21,70 +22,86 @@ import { useUserStore } from 'store/userStore';
 import MediaPostList from '@components/home/MediaPostList';
 import MediaPostUpload from '@components/home/MediaPostUpload';
 import { InfoMessage } from '@components/ui/InfoMessage';
-
-import { Plus, X } from 'lucide-react-native';
 import NewsFeed from '@components/home/NewsPost';
 import AllEvents from '@components/home/AllEvents';
 
-type Tab = 'Events' | 'News' | 'Media';
+import { Plus, X } from 'lucide-react-native';
+
+type ActiveHomeTab = 'Events' | 'News' | 'Media';
+
+const TAB_BAR_HEIGHT = 44;
 
 const HomeScreen: React.FC = () => {
   const router = useRouter();
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const lastScrollY = useRef(0);
+  const scrollOffsetY = useRef(new Animated.Value(0)).current;
+  const lastScrollOffsetY = useRef(0);
 
-  const tabBarHeight = 44;
+  const { 
+    fetchNewsArticles,
+    subscribeToNewsArticles,
+    loadingNews,
+    error: newsError
+  } = useNewsStore();
 
-  const { fetchNewsArticles, subscribeToNewsArticles, loadingNews, error: newsError } = useNewsStore();
-  const { fetchEvents, subscribeToEvents, loadingEvents, error: eventError } = useEventStore();
-  const { fetchMediaPosts, loadingMedia, error: mediaError } = useMediaStore();
-  const { fetchAuthUser, authUser, loading: loadingUser, error: userError } = useUserStore();
+  const { 
+    fetchEvents,
+    subscribeToEvents,
+    loadingEvents,
+    error: eventError
+  } = useEventStore();
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('Events');
-  const [isUploadModalVisible, setUploadModalVisible] = useState(false);
-  const [isTabBarVisible, setIsTabBarVisible] = useState(true);
+  const { 
+    loadAllMediaPosts: fetchMedia, 
+    isLoadingMedia, 
+    operationError: mediaError 
+  } = useMediaStore();
+  
+  const { 
+    fetchAuthUser,
+    authUser,
+    loading: loadingUser,
+    error: userError
+  } = useUserStore();
 
-  const tabBarTranslateY = scrollY.interpolate({
-    inputRange: [0, 10, 50],
-    outputRange: [0, 0, -tabBarHeight],
-    extrapolate: 'clamp',
-  });
+  const [isScreenRefreshing, setIsScreenRefreshing] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<ActiveHomeTab>('Events');
+  const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+  const [isTopTabBarVisible, setIsTopTabBarVisible] = useState(true);
 
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+  const handlePageScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollOffsetY } } }],
     {
       useNativeDriver: true,
       listener: (event) => {
         const currentScrollY = (event.nativeEvent as NativeScrollEvent).contentOffset.y;
-        if (currentScrollY < lastScrollY.current || currentScrollY <= 0) {
-          setIsTabBarVisible(true);
-        } else if (currentScrollY > lastScrollY.current && currentScrollY > 10) {
-          setIsTabBarVisible(false);
+        if (currentScrollY < lastScrollOffsetY.current || currentScrollY <= 0) {
+          setIsTopTabBarVisible(true);
+        } else if (currentScrollY > lastScrollOffsetY.current && currentScrollY > 10) {
+          setIsTopTabBarVisible(false);
         }
-        lastScrollY.current = currentScrollY;
+        lastScrollOffsetY.current = currentScrollY;
       }
     }
   );
 
-  const loadAllData = useCallback(async () => {
+  const refreshAllScreenData = useCallback(async () => {
     await Promise.all([
       fetchNewsArticles(),
       fetchEvents(),
-      fetchMediaPosts(),
+      fetchMedia(),
       fetchAuthUser(),
     ]);
-  }, [fetchNewsArticles, fetchEvents, fetchMediaPosts, fetchAuthUser]);
+  }, [fetchNewsArticles, fetchEvents, fetchMedia, fetchAuthUser]);
 
   useEffect(() => {
-    loadAllData();
-    const unsubscribeNews = subscribeToNewsArticles();
-    const unsubscribeEvents = subscribeToEvents();
+    refreshAllScreenData();
+    const unsubscribeNewsFeed = subscribeToNewsArticles();
+    const unsubscribeEventsFeed = subscribeToEvents();
     return () => {
-      unsubscribeNews();
-      unsubscribeEvents();
+      unsubscribeNewsFeed();
+      unsubscribeEventsFeed();
     };
-  }, [loadAllData, subscribeToNewsArticles, subscribeToEvents]);
+  }, [refreshAllScreenData, subscribeToNewsArticles, subscribeToEvents]);
 
   useEffect(() => {
     if (!loadingUser && !authUser) {
@@ -92,39 +109,32 @@ const HomeScreen: React.FC = () => {
     }
   }, [loadingUser, authUser, router]);
 
-  const onRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    setIsTabBarVisible(true);
-    await loadAllData();
-    setIsRefreshing(false);
-  }, [loadAllData]);
+  const handleScreenRefresh = useCallback(async () => {
+    setIsScreenRefreshing(true);
+    setIsTopTabBarVisible(true); 
+    await refreshAllScreenData();
+    setIsScreenRefreshing(false);
+  }, [refreshAllScreenData]);
 
-  if (loadingNews || loadingEvents || loadingMedia || loadingUser) {
-    return <InfoMessage message="Loading..." type="loading" />;
+  if (loadingNews || loadingEvents || isLoadingMedia || loadingUser) {
+    return <InfoMessage message="Loading dashboard..." type="loading" />;
   }
 
-  if (newsError || eventError || mediaError || userError) {
-    return (
-      <InfoMessage
-        message="Error loading data"
-        type="error"
-        details={
-          [newsError, eventError, mediaError, userError].filter(Boolean).join('\n')
-        }
-      />
-    );
+  const combinedError = [newsError, eventError, mediaError, userError].filter(Boolean).join('\n');
+  if (combinedError) {
+    return <InfoMessage message="Error loading data" type="error" details={combinedError} />;
   }
 
   if (!authUser && !loadingUser) {
-    return null;
+    return null; 
   }
 
-  const renderTabContent = () => {
-    switch (activeTab) {
+  const renderActiveTabContent = () => {
+    switch (selectedTab) {
       case 'Events':
         return <AllEvents />;
       case 'News':
-        return <NewsFeed />; // DO NOT WRAP this with ScrollView!
+        return <NewsFeed />;
       case 'Media':
         return <MediaPostList />;
       default:
@@ -132,109 +142,101 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  const shouldWrapInScrollView = activeTab !== 'News'; // NewsFeed handles its own scroll
+  const needsScrollViewWrapper = selectedTab !== 'News';
 
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
 
-      {/* Animated Tab Bar */}
       <Animated.View
-        style={{
-          transform: [{ translateY: isTabBarVisible ? 0 : -tabBarHeight }],
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 100,
-          backgroundColor: 'white',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.1,
-          shadowRadius: 2,
-          elevation: 3,
-        }}
+        className="absolute top-0 left-0 right-0 z-50 bg-white shadow-sm"
+        style={{ transform: [{ translateY: isTopTabBarVisible ? 0 : -TAB_BAR_HEIGHT }] }}
       >
-        <View className="flex-row justify-around bg-white border-b border-gray-200">
-          {(['Events', 'News', 'Media'] as Tab[]).map(tab => (
+        <View className="flex-row justify-around border-b border-gray-200">
+          {(['Events', 'News', 'Media'] as ActiveHomeTab[]).map(tabName => (
             <TouchableOpacity
-              key={tab}
-              className={`flex-1 items-center py-3 ${activeTab === tab ? 'border-b-2 border-[#007AFF]' : ''}`}
-              onPress={() => setActiveTab(tab)}
+              key={tabName}
+              className={`flex-1 items-center py-3 ${selectedTab === tabName ? 'border-b-2 border-sky-500' : ''}`}
+              onPress={() => setSelectedTab(tabName)}
             >
-              <Text className={`text-sm ${activeTab === tab ? 'font-bold text-[#007AFF]' : 'text-gray-600'}`}>
-                {tab}
+              <Text className={`text-sm ${selectedTab === tabName ? 'font-semibold text-sky-600' : 'text-gray-600'}`}>
+                {tabName}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </Animated.View>
 
-      {shouldWrapInScrollView ? (
+      {needsScrollViewWrapper ? (
         <Animated.ScrollView
           className="flex-1 bg-gray-100"
-          contentContainerStyle={{ paddingTop: tabBarHeight }}
+          contentContainerStyle={{ paddingTop: TAB_BAR_HEIGHT }}
           scrollEventThrottle={16}
-          onScroll={handleScroll}
+          onScroll={handlePageScroll}
           refreshControl={
             <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={onRefresh}
+              refreshing={isScreenRefreshing}
+              onRefresh={handleScreenRefresh}
               colors={["#007AFF"]}
               tintColor="#007AFF"
-              progressViewOffset={tabBarHeight}
+              progressViewOffset={TAB_BAR_HEIGHT}
             />
           }
         >
-          {renderTabContent()}
-          <View className="h-20" />
+          {renderActiveTabContent()}
+          <View className="h-24" />
         </Animated.ScrollView>
       ) : (
-        // Render NewsFeed without ScrollView
-        <View className="flex-1 pt-[44px] bg-gray-100">
-          {renderTabContent()}
+        <View style={{paddingTop: TAB_BAR_HEIGHT}} className="flex-1 bg-gray-100">
+          {renderActiveTabContent()}
         </View>
       )}
 
       {authUser && (
         <TouchableOpacity
-          className="absolute bottom-6 right-6 w-14 h-14 bg-[#007AFF] rounded-full items-center justify-center"
-          style={{
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
-            elevation: 5,
-          }}
-          onPress={() => setUploadModalVisible(true)}
+          className="absolute bottom-6 right-6 w-14 h-14 bg-sky-500 rounded-full items-center justify-center shadow-lg"
+          onPress={() => setIsCreatePostModalOpen(true)}
         >
-          <Plus size={24} color="#fff" />
+          <Plus size={24} color="white" />
         </TouchableOpacity>
       )}
 
-      {/* Upload Modal */}
       <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isUploadModalVisible}
-        onRequestClose={() => setUploadModalVisible(false)}
+        isVisible={isCreatePostModalOpen}
+        onBackdropPress={() => setIsCreatePostModalOpen(false)}
+        onSwipeComplete={() => setIsCreatePostModalOpen(false)}
+        swipeDirection={['down']}
+        animationIn="slideInUp"
+        animationOut="slideOutDown"
+        backdropColor="black"
+        backdropOpacity={0.65}
+        style={{ justifyContent: 'flex-end', margin: 0 }}
+        useNativeDriverForBackdrop
+        propagateSwipe // Allows scrolling within modal content if swipe is not caught by modal itself
       >
-        <View className="flex-1 justify-end items-center bg-black/50">
-          <View className="w-full max-h-[90%] bg-white rounded-t-2xl">
-            <View className="w-12 h-1 bg-gray-300 rounded-full mx-auto mt-2 mb-4" />
-            <View className="px-5 py-3 border-b border-gray-200 mb-2">
-              <View className="flex-row justify-between items-center">
-                <Text className="text-xl font-bold text-gray-800">Upload Media</Text>
-                <TouchableOpacity onPress={() => setUploadModalVisible(false)} className="p-2">
-                  <X size={24} color="#666" />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          className="w-full"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0} 
+        >
+          <SafeAreaView className="w-full max-h-[90vh]">
+            <View className="w-full bg-gray-50 rounded-t-2xl shadow-xl overflow-hidden">
+              <View className="flex-row justify-between items-center px-5 py-[15px] bg-white border-b border-gray-200">
+                <Text className="text-xl font-bold text-gray-800">Create New Media Post</Text>
+                <TouchableOpacity 
+                  onPress={() => setIsCreatePostModalOpen(false)} 
+                  className="p-2 rounded-full active:bg-gray-100"
+                >
+                  <X size={20} color="#4B5263" />
                 </TouchableOpacity>
               </View>
+              
+              <View className="max-h-[calc(0.9*100vh-80px)]"> 
+                {authUser && <MediaPostUpload loggedInUserId={authUser.id} />}
+              </View>
             </View>
-
-            {authUser && <MediaPostUpload currentUserId={authUser.id} />}
-
-          </View>
-        </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

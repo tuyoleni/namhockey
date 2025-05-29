@@ -117,7 +117,6 @@ const EventScreen: React.FC = () => {
      setSelectedEventIdForRegistration(null);
    }
 
-   // Show loading indicator while user data is being fetched
    if (loadingUser) {
        return (
            <View className="flex-1 justify-center items-center bg-gray-100">

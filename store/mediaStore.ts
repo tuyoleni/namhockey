@@ -1,142 +1,195 @@
 import { create } from 'zustand';
 import { supabase } from '@utils/superbase';
-import { Tables, TablesInsert } from 'types/database.types';
+import type { Tables, TablesInsert } from 'types/database.types';
 
-type MediaPostRow = Tables<'media_posts'> & {
-  profiles?: { id: string; profile_picture: string | null } | null;
+type PostAuthorProfile = Pick<Tables<'profiles'>, 'id' | 'display_name' | 'profile_picture'> | null;
+
+type MediaPostWithAuthor = Tables<'media_posts'> & {
+  profiles: PostAuthorProfile;
 };
+type NewMediaPostPayload = TablesInsert<'media_posts'>;
+
+interface UploadMediaDetails {
+    uploaderUserId: string;
+    mediaType: 'image' | 'video';
+    mediaFile: Blob;
+    captionText?: string;
+    originalFileName?: string | null;
+}
 
 interface MediaState {
-  mediaPosts: MediaPostRow[];
-  loadingMedia: boolean;
-  uploadingMedia: boolean;
-  error: string | null;
+  allMediaPosts: MediaPostWithAuthor[];
+  isLoadingMedia: boolean;
+  isUploadingMedia: boolean;
+  operationError: string | null;
 }
 
 interface MediaActions {
-  fetchMediaPosts: () => Promise<void>;
-  uploadMediaPost: (postData: {
-    userId: string;
-    type: 'image' | 'video';
-    file: File | Blob;
-    caption?: string;
-  }) => Promise<MediaPostRow | null>;
-  deleteMediaPost: (postId: string) => Promise<void>;
+  loadAllMediaPosts: () => Promise<void>;
+  createNewMediaPost: (details: UploadMediaDetails) => Promise<MediaPostWithAuthor | null>;
+  removeMediaPost: (postId: string) => Promise<boolean>;
 }
 
-type MediaStore = MediaState & MediaActions;
+const MEDIA_POST_BUCKET_NAME = 'mediaposts';
 
-export const useMediaStore = create<MediaStore>((set) => ({
-  mediaPosts: [],
-  loadingMedia: false,
-  uploadingMedia: false,
-  error: null,
+export const useMediaStore = create<MediaState & MediaActions>((set, get) => ({
+  allMediaPosts: [],
+  isLoadingMedia: false,
+  isUploadingMedia: false,
+  operationError: null,
 
-  fetchMediaPosts: async () => {
-    set({ loadingMedia: true, error: null });
+  loadAllMediaPosts: async () => {
+    set({ isLoadingMedia: true, operationError: null });
     try {
       const { data, error } = await supabase
         .from('media_posts')
-        .select(`*, profiles (id, profile_picture)`)
+        .select(`
+          *,
+          profiles ( 
+            id,
+            display_name,
+            profile_picture
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-
-      set({ mediaPosts: (data as MediaPostRow[]) || [], loadingMedia: false });
-    } catch (e: any) {
-      console.error('Error fetching media posts:', e);
-      set({
-        error: e.message || 'Failed to fetch media posts',
-        loadingMedia: false,
-        mediaPosts: [],
-      });
+      set({ allMediaPosts: (data as MediaPostWithAuthor[]) || [], isLoadingMedia: false });
+    } catch (error: any) {
+      console.error('Error loading media posts:', error);
+      set({ operationError: error.message || 'Failed to load posts.', isLoadingMedia: false, allMediaPosts: [] });
     }
   },
 
-  uploadMediaPost: async ({ userId, type, file, caption }) => {
-    set({ uploadingMedia: true, error: null });
+  createNewMediaPost: async ({ uploaderUserId, mediaType, mediaFile, captionText, originalFileName }) => {
+    set({ isUploadingMedia: true, operationError: null });
     try {
-      const ext = file instanceof File
-        ? file.name.split('.').pop()
-        : file.type?.split('/').pop() || 'bin';
+      let fileExtension = 'bin';
+      if (originalFileName) {
+        const nameParts = originalFileName.split('.');
+        if (nameParts.length > 1) fileExtension = nameParts.pop()?.toLowerCase() || fileExtension;
+      } else if (mediaFile.type) {
+        fileExtension = mediaFile.type.split('/')?.pop()?.toLowerCase() || fileExtension;
+      }
+      fileExtension = fileExtension.replace(/[^a-z0-9]/gi, '');
+      if (!fileExtension || fileExtension.length > 5) fileExtension = 'bin';
 
-      const contentType = file.type || 'application/octet-stream';
-      const filePath = `${userId}/${Date.now()}.${ext}`;
+      const fileContentType = mediaFile.type || 'application/octet-stream';
+      const uniqueFileStoragePath = `${uploaderUserId}/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExtension}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('mediaposts')
-        .upload(filePath, file, {
+      const { error: storageError } = await supabase.storage
+        .from(MEDIA_POST_BUCKET_NAME)
+        .upload(uniqueFileStoragePath, mediaFile, {
           cacheControl: '3600',
           upsert: false,
-          contentType,
+          contentType: fileContentType,
         });
 
-      if (uploadError) throw uploadError;
+      if (storageError) throw storageError;
 
-      const { data: publicUrlData } = supabase.storage
-        .from('mediaposts')
-        .getPublicUrl(filePath);
+      const { data: urlData } = supabase.storage
+        .from(MEDIA_POST_BUCKET_NAME)
+        .getPublicUrl(uniqueFileStoragePath);
 
-      const publicUrl = publicUrlData?.publicUrl;
-      if (!publicUrl) throw new Error('Could not generate public URL.');
+      const publicFileUrl = urlData?.publicUrl;
+      if (!publicFileUrl) throw new Error('Could not get public URL for the uploaded file.');
 
-      const insertData: TablesInsert<'media_posts'> = {
-        user_id: userId,
-        type,
-        url: publicUrl,
-        caption: caption || null,
+      const newPostData: NewMediaPostPayload = {
+        url: publicFileUrl,
+        user_id: uploaderUserId,
+        type: mediaType,
+        caption: captionText || null,
       };
 
-      const { data: postData, error: postError } = await supabase
+      const { data: savedPost, error: insertError } = await supabase
         .from('media_posts')
-        .insert([insertData])
-        .select(`*, profiles (id, profile_picture)`)
+        .insert([newPostData])
+        .select(`
+          *,
+          profiles (
+            id,
+            display_name,
+            profile_picture
+          )
+        `)
         .single();
 
-      if (postError) throw postError;
+      if (insertError) throw insertError;
+      if (!savedPost) throw new Error('Failed to save post data after upload.');
+      
+      const newPostWithAuthor = savedPost as MediaPostWithAuthor;
 
-      set({ uploadingMedia: false });
-      return postData as MediaPostRow;
-    } catch (e: any) {
-      console.error('Upload failed:', e);
-      set({
-        error: e.message || 'Upload failed',
-        uploadingMedia: false,
-      });
+      set((state) => ({
+        isUploadingMedia: false,
+        allMediaPosts: [newPostWithAuthor, ...state.allMediaPosts],
+      }));
+      return newPostWithAuthor;
+
+    } catch (error: any) {
+      console.error('Create new media post failed:', error);
+      set({ operationError: error.message || 'Upload failed.', isUploadingMedia: false });
       return null;
     }
   },
 
-  deleteMediaPost: async (postId: string) => {
-    set({ loadingMedia: true, error: null });
+  removeMediaPost: async (postId: string) => {
+    set({ operationError: null });
+    const postToRemove = get().allMediaPosts.find(p => p.id === postId);
+
+    if (!postToRemove || !postToRemove.url) {
+      const errorMessage = "Post data or URL not found for deletion.";
+      console.error(errorMessage);
+      set({ operationError: errorMessage });
+      return false;
+    }
+
+    let fileStoragePath = '';
     try {
-      const { data: postData, error } = await supabase
-        .from('media_posts')
-        .select('url')
-        .eq('id', postId)
-        .single();
+      const urlObject = new URL(postToRemove.url);
+      const pathSegments = urlObject.pathname.split('/');
+      const bucketNameIndex = pathSegments.indexOf(MEDIA_POST_BUCKET_NAME);
+      if (bucketNameIndex !== -1 && bucketNameIndex < pathSegments.length - 1) {
+        fileStoragePath = pathSegments.slice(bucketNameIndex + 1).join('/');
+      }
+    } catch (parseError: any) {
+      console.error("Error parsing URL for storage path:", parseError);
+      set({ operationError: "Could not determine file path from URL." });
+      return false;
+    }
+    
+    if (!fileStoragePath) {
+      const errorMessage = `Could not extract file path from URL: ${postToRemove.url}`;
+      console.error(errorMessage);
+      set({ operationError: errorMessage });
+      return false;
+    }
 
-      if (error || !postData?.url) throw error || new Error('No media found');
-
-      const url = new URL(postData.url);
-      const filePath = decodeURIComponent(url.pathname.split('/').slice(3).join('/'));
-
-      const { error: dbDeleteError } = await supabase
+    try {
+      const { error: dbError } = await supabase
         .from('media_posts')
         .delete()
         .eq('id', postId);
 
-      if (dbDeleteError) throw dbDeleteError;
+      if (dbError) throw dbError;
 
-      await supabase.storage.from('mediaposts').remove([filePath]);
+      const { error: storageError } = await supabase.storage
+        .from(MEDIA_POST_BUCKET_NAME)
+        .remove([fileStoragePath]);
 
-      set({ loadingMedia: false });
-    } catch (e: any) {
-      console.error('Delete failed:', e);
-      set({
-        error: e.message || 'Delete failed',
-        loadingMedia: false,
-      });
+      if (storageError) {
+        console.warn(`Storage file deletion failed for ${fileStoragePath}:`, storageError);
+        set({operationError: `Post data deleted, but failed to remove file from storage: ${storageError.message}`});
+      }
+      
+      set((state) => ({
+        allMediaPosts: state.allMediaPosts.filter((post) => post.id !== postId),
+      }));
+      return true;
+
+    } catch (error: any) {
+      console.error('Remove media post failed:', error);
+      set({ operationError: error.message || 'Failed to delete post.'});
+      return false;
     }
   },
 }));

@@ -1,58 +1,66 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
-import { Tables } from 'types/database.types';
+import { View, Text, Image } from 'react-native';
+import type { Tables } from 'types/database.types';
 
+type PostAuthorProfile = Pick<Tables<'profiles'>, 'id' | 'display_name' | 'profile_picture'> | null;
 
-const Video = ({ source, style, useNativeControls, resizeMode, isLooping }: any) => (
-    <View style={[style, { backgroundColor: '#eee', justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ fontSize: 16, color: '#555' }}>Video Placeholder</Text>
-        <Text style={{ fontSize: 10, color: '#555', marginTop: 5, textAlign: 'center', paddingHorizontal: 10 }}>{source.uri}</Text>
-    </View>
-);
-
-
-const ResizeMode = { CONTAIN: 'contain', COVER: 'cover' }; 
-
-
-type MediaPostWithAuthor = Tables<'media_posts'> & {
-  profiles?: { id: string; profile_picture: string | null } | null;
-};
+interface MediaPostFromStore extends Tables<'media_posts'> {
+  profiles: PostAuthorProfile;
+}
 
 interface MediaPostItemProps {
-  post: MediaPostWithAuthor;
+  post: MediaPostFromStore; 
 }
 
 const MediaPostItem: React.FC<MediaPostItemProps> = ({ post }) => {
+  const authorProfile = post.profiles;
+  const authorName = authorProfile?.display_name || ''; 
+  const profilePictureUrl = authorProfile?.profile_picture;
+
   return (
-    <View className="bg-white p-4 mx-4 my-2 rounded-lg">
-       {post.profiles && (
+    <View className="bg-white p-4 rounded-lg mb-4 border border-gray-100">
+      {authorProfile && (
         <View className="flex-row items-center mb-3">
-          {post.profiles.profile_picture && (
-            <Image source={{ uri: post.profiles.profile_picture }} className="w-8 h-8 rounded-full mr-3" />
+          {profilePictureUrl ? (
+            <Image 
+              source={{ uri: profilePictureUrl }} 
+              className="w-10 h-10 rounded-full mr-3 bg-gray-200" 
+            />
+          ) : (
+            <View className="w-10 h-10 rounded-full mr-3 bg-gray-300 items-center justify-center">
+              <Text className="text-white font-bold text-sm">
+                {authorName ? authorName.charAt(0).toUpperCase() : 'U'}
+              </Text>
+            </View>
           )}
-            <Text className="text-sm font-bold text-gray-900">{post.profiles.id || 'Unknown User'}</Text>
+          {authorName ? (
+            <Text className="font-semibold text-gray-800 text-base">{authorName}</Text>
+          ) : (
+            <Text className="font-semibold text-gray-500 text-base italic">User</Text> 
+          )}
         </View>
       )}
 
+      {post.caption && (
+        <Text className="text-gray-700 mb-3 text-base leading-relaxed">{post.caption}</Text>
+      )}
+
       {post.type === 'image' && post.url && (
-        <Image source={{ uri: post.url }} className="w-full h-64 rounded-lg mb-3" resizeMode="cover" />
+        <Image 
+          source={{ uri: post.url }} 
+          className="w-full aspect-[16/9] rounded-md bg-gray-200 mb-2" 
+          resizeMode="cover" 
+        />
       )}
       {post.type === 'video' && post.url && (
-         <Video
-           source={{ uri: post.url }}
-           className="w-full h-64 rounded-lg mb-3"
-           useNativeControls
-           resizeMode={ResizeMode.CONTAIN}
-           isLooping
-         />
+         <View className="w-full aspect-[16/9] rounded-md bg-black items-center justify-center mb-2">
+            <Text className="text-white">Video placeholder</Text>
+         </View>
       )}
-
-      {post.caption && (
-        <Text className="text-sm text-gray-800 mb-3">{post.caption}</Text>
-      )}
-
-       <Text className="text-xs text-gray-500">{post.created_at ? new Date(post.created_at).toLocaleString() : 'N/A'}</Text>
-
+      
+      <Text className="text-xs text-gray-500 mt-2">
+        {new Date(post.created_at).toLocaleDateString()}
+      </Text>
     </View>
   );
 };

@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
-import RegistrationItem from './RegistrationItem'; // Adjust import path
+import RegistrationItem from './RegistrationItem';
 import { useEventStore } from 'store/eventStore';
 import { Tables } from 'types/database.types';
 
 type EventRegistrationRow = Tables<'event_registrations'>;
 
 interface RegistrationListProps {
-  eventId: string; // The event ID for which to show registrations
+  eventId: string;
 }
 
 const RegistrationList: React.FC<RegistrationListProps> = ({ eventId }) => {
@@ -17,28 +17,27 @@ const RegistrationList: React.FC<RegistrationListProps> = ({ eventId }) => {
     error,
     fetchRegistrationsByEventId,
     subscribeToEventRegistrations,
-    unregisterTeamFromEvent,
+    unregisterTeamFromEvent,  // Add this line
   } = useEventStore();
 
-  // Filter registrations in the store state for the current eventId
   const eventRegistrations = registrations.filter(reg => reg.event_id === eventId);
 
   useEffect(() => {
     // Fetch registrations for this specific event
     fetchRegistrationsByEventId(eventId);
 
-    // Subscribe to realtime changes for registrations, filtered by eventId
+    // Subscribe to real-time updates
     const unsubscribe = subscribeToEventRegistrations(eventId);
 
-    // Clean up subscription on component unmount or when eventId changes
+    // Clean up subscription when component unmounts or eventId changes
     return () => {
       unsubscribe();
     };
-  }, [eventId, fetchRegistrationsByEventId, subscribeToEventRegistrations]); // Re-run if eventId changes
+  }, [eventId, fetchRegistrationsByEventId, subscribeToEventRegistrations]);
 
   const handleUnregister = async (registrationId: string) => {
-     await unregisterTeamFromEvent(registrationId);
-     // The store's subscription will handle removing the item from the list
+    await unregisterTeamFromEvent(registrationId);
+    // The store's subscription will handle removing the item from the list
   };
 
 

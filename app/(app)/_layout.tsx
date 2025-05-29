@@ -41,6 +41,17 @@ export default function AppLayout() {
           }}
         />
         <Tabs.Screen
+          name="PlayerRegistration/index"
+          options={{
+            title: 'Player Registration',
+            tabBarIcon: ({ focused, color, size }) => {
+              const iconName = focused ? 'person-add-outline' : 'person-add-outline';
+              return <Ionicons  name={iconName} size={size} color={color} />;
+            },
+          }}
+        />
+        
+        <Tabs.Screen
           name="profile/index"
           options={{
             title: 'Profile',

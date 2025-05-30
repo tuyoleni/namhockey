@@ -28,6 +28,7 @@ interface TeamActions {
     subscribeToTeams: () => () => void;
     fetchTeamDetails: (teamId: string) => Promise<void>;
     addTeamMember: (teamId: string, userId: string, role: string) => Promise<TeamMemberRow | null>;
+    removeTeamMember: (teamId: string, userIdToRemove: string) => Promise<boolean>; // Added action
     leaveTeam: (teamId: string, userId: string) => Promise<void>;
     subscribeToTeamMembers: (teamId: string) => () => void;
     requestToJoinTeam: (teamId: string, userId: string) => Promise<void>;
@@ -229,7 +230,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
             const { data: membersData, error: membersError } = await supabase
                 .from('team_members')
-                .select('*, profiles(*)')
+                .select('*, profiles!inner(id, display_name, profile_picture)')
                 .eq('team_id', teamId);
 
             if (membersError) throw membersError;
@@ -252,7 +253,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
             const { data, error } = await supabase
                 .from('team_members')
                 .insert({ team_id: teamId, user_id: userId, role, status: 'active' })
-                .select('*, profiles(*)')
+                .select('*, profiles!inner(id, display_name, profile_picture)')
                 .single();
             
             set({ loadingTeamDetails: false });
@@ -265,6 +266,28 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
             console.error('Error adding team member:', error);
             set({ error: error.message || 'Could not add team member', loadingTeamDetails: false });
             return null;
+        }
+    },
+
+    removeTeamMember: async (teamId: string, userIdToRemove: string) => {
+        set({ loadingTeamDetails: true, error: null });
+        try {
+            const { error } = await supabase
+                .from('team_members')
+                .delete()
+                .eq('team_id', teamId)
+                .eq('user_id', userIdToRemove);
+
+            if (error) throw error;
+            
+            await get().fetchTeamDetails(teamId); 
+            set({ loadingTeamDetails: false });
+            return true;
+        } catch (error: any) {
+            console.error('Error removing team member:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Could not remove team member';
+            set({ error: errorMessage, loadingTeamDetails: false });
+            return false;
         }
     },
 
@@ -292,7 +315,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
             .on<Tables<'team_members'>>( 
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'team_members', filter: `team_id=eq.${teamId}` },
-                async (payload) => {
+                async () => { 
                     get().fetchTeamDetails(teamId);
                 }
             )
@@ -327,7 +350,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         try {
             const { data, error } = await supabase
                 .from('team_join_requests')
-                .select('*, profiles(id, display_name, profile_picture)')
+                .select('*, profiles!inner(id, display_name, profile_picture)') 
                 .eq('team_id', teamId)
                 .eq('status', 'pending');
             if (error) throw error;
@@ -401,7 +424,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
             .on<Tables<'team_join_requests'>>(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'team_join_requests', filter: `team_id=eq.${teamId}` },
-                (payload) => {
+                () => { 
                    get().fetchJoinRequests(teamId);
                 }
             )

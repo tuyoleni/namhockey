@@ -1,11 +1,10 @@
 import { create } from 'zustand';
 import { supabase } from '@utils/superbase';
-import { Database, Tables } from '../types/database.types';
-import { AuthError, User } from '@supabase/supabase-js';
-import { PostgrestError } from '@supabase/supabase-js';
+import { Tables } from '../types/database.types'; // Assuming your database types are here
+import { PostgrestError, User } from '@supabase/supabase-js';
 
 export type Profile = Tables<'profiles'> & {
-  username: string | null;
+  username: string | null; 
   full_name: string | null;
   following_count: number;
   followers_count: number;
@@ -14,11 +13,17 @@ export type Profile = Tables<'profiles'> & {
 
 type AuthUser = User;
 
+export type SearchableUser = Pick<Tables<'profiles'>, 'id' | 'display_name' | 'profile_picture'> & {
+  email?: string | null; // Include if email is on your profiles table and you want to display/search it
+};
+
 interface UserState {
   profile: Profile | null;
   authUser: AuthUser | null;
   loading: boolean;
   error: string | null;
+  searchedUsers: SearchableUser[];
+  loadingSearch: boolean;
   fetchProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   fetchUserPosts: () => Promise<Tables<'news_articles'>[]>;
@@ -27,6 +32,7 @@ interface UserState {
   fetchUserActivity: () => Promise<Tables<'notifications'>[]>;
   fetchAuthUser: () => Promise<void>;
   fetchUser: (uuid: string) => Promise<{ user: Profile } | PostgrestError | undefined>;
+  searchUsers: (query: string) => Promise<SearchableUser[]>;
 }
 
 export const useUserStore = create<UserState>((set, get) => ({
@@ -34,13 +40,17 @@ export const useUserStore = create<UserState>((set, get) => ({
   authUser: null,
   loading: false,
   error: null,
+  searchedUsers: [],
+  loadingSearch: false,
 
   fetchProfile: async () => {
+    set({ loading: true, error: null });
     try {
-      set({ loading: true, error: null });
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error('No user found');
+      if (!user) {
+        set({ loading: false, error: 'No user session found.'});
+        throw new Error('No user session found');
+      }
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -49,70 +59,80 @@ export const useUserStore = create<UserState>((set, get) => ({
         .single();
 
       if (profileError) throw profileError;
-
+      if (!profileData) throw new Error('Profile not found for authenticated user.');
+      
       const combinedProfile: Profile = {
-        ...(profileData as Tables<'profiles'>),
-        username: user.user_metadata?.username || null,
-        full_name: user.user_metadata?.full_name || null,
-        following_count: 0,
+        ...profileData,
+        username: user.user_metadata?.username || profileData.username || null,
+        full_name: user.user_metadata?.full_name || profileData.display_name || null,
+        following_count: 0, 
         followers_count: 0,
         posts_count: 0,
       };
 
-      set({ 
-        authUser: user,
-        profile: combinedProfile,
-        loading: false 
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      set({ authUser: user, profile: combinedProfile, loading: false });
+    } catch (error: any) {
+      const errorMessage = error.message || 'An unknown error occurred';
       set({ error: `Failed to fetch profile: ${errorMessage}`, loading: false });
+      console.error("fetchProfile error:", error);
     }
   },
 
   updateProfile: async (updates) => {
+    set({ loading: true, error: null });
     try {
-      set({ loading: true, error: null });
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error('No user found');
+      if (!user) throw new Error('No user session found for update.');
 
       const profileTableUpdates: Partial<Tables<'profiles'>> = {
         bio: updates.bio,
+        display_name: updates.display_name || updates.full_name, // Prioritize display_name if provided
         profile_picture: updates.profile_picture,
+        // username: updates.username, // If you store username in profiles table
       };
+      
+      const userMetadataUpdate: any = {};
+      if (updates.full_name) userMetadataUpdate.full_name = updates.full_name;
+      if (updates.username) userMetadataUpdate.username = updates.username;
 
-      const { error } = await supabase
+      if (Object.keys(userMetadataUpdate).length > 0) {
+        const { error: userUpdateError } = await supabase.auth.updateUser({
+            data: userMetadataUpdate
+        });
+        if (userUpdateError) throw userUpdateError;
+      }
+
+      const { error: profileUpdateError } = await supabase
         .from('profiles')
         .update(profileTableUpdates)
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (profileUpdateError) throw profileUpdateError;
 
       set((state) => ({
         profile: state.profile ? { ...state.profile, ...updates } : null,
         loading: false
       }));
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      await get().fetchProfile(); // Re-fetch to ensure consistency
+    } catch (error: any) {
+      const errorMessage = error.message || 'An unknown error occurred';
       set({ error: `Failed to update profile: ${errorMessage}`, loading: false });
+      console.error("updateProfile error:", error);
     }
   },
 
   fetchUserPosts: async () => {
     try {
-      const profile = get().profile;
-      if (!profile) return [];
-
+      const authUser = get().authUser;
+      if (!authUser) return [];
       const { data, error } = await supabase
         .from('news_articles')
         .select('*')
-        .eq('author_profile_id', profile.id)
+        .eq('author_profile_id', authUser.id)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       return data || [];
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching user posts:', error);
       return [];
     }
@@ -120,26 +140,15 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   fetchUserFollowers: async () => {
     try {
-      const profile = get().profile;
-      if (!profile) return [];
-
+      const authUser = get().authUser;
+      if (!authUser) return [];
       const { data, error } = await supabase
         .from('follows')
-        .select(`
-          created_at,
-          followee_id,
-          follower_id,
-          profiles!follows_follower_id_fkey (
-            id,
-            bio,
-            profile_picture
-          )
-        `)
-        .eq('followee_id', profile.id);
-
+        .select(`*, follower:profiles!follows_follower_id_fkey(*)`)
+        .eq('followee_id', authUser.id);
       if (error) throw error;
       return data || [];
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching followers:', error);
       return [];
     }
@@ -147,26 +156,15 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   fetchUserFollowing: async () => {
     try {
-      const profile = get().profile;
-      if (!profile) return [];
-
+      const authUser = get().authUser;
+      if (!authUser) return [];
       const { data, error } = await supabase
         .from('follows')
-        .select(`
-          created_at,
-          followee_id,
-          follower_id,
-          profiles!follows_followee_id_fkey (
-            id,
-            bio,
-            profile_picture
-          )
-        `)
-        .eq('follower_id', profile.id);
-
+        .select(`*, followee:profiles!follows_followee_id_fkey(*)`)
+        .eq('follower_id', authUser.id);
       if (error) throw error;
       return data || [];
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching following:', error);
       return [];
     }
@@ -174,25 +172,24 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   fetchUserActivity: async () => {
     try {
-      const profile = get().profile;
-      if (!profile) return [];
-
+      const authUser = get().authUser;
+      if (!authUser) return [];
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('recipient_profile_id', profile.id)
+        .eq('recipient_profile_id', authUser.id)
         .order('created_at', { ascending: false })
-        .limit(10);
-
+        .limit(20);
       if (error) throw error;
       return data || [];
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching activity:', error);
       return [];
     }
   },
   
   fetchUser: async (uuid: string) => {
+    set({ loading: true, error: null });
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -200,54 +197,82 @@ export const useUserStore = create<UserState>((set, get) => ({
         .eq('id', uuid)
         .single();
   
+      set({ loading: false });
       if (profileError) {
-        console.log('fetchUser error:', profileError);
-        return profileError;
+        console.error('fetchUser error:', profileError);
+        return profileError; 
       }
+      if (!profileData) return undefined;
   
       const enrichedProfile: Profile = {
-        ...(profileData as Tables<'profiles'>),
-        username: null,
-        full_name: null,
+        ...profileData,
+        username: profileData.username || null, // Assuming username might be on profiles table
+        full_name: profileData.display_name || null, // Use display_name for full_name for consistency
         following_count: 0,
         followers_count: 0,
         posts_count: 0,
-      }
-      
-      console.log('fetchUser result:', enrichedProfile);
-      return enrichedProfile ? { user: enrichedProfile } : undefined;
-    } catch (error) {
-      console.log('Error Fetching Data:', error);
+      };
+      return { user: enrichedProfile };
+    } catch (error: any) {
+      console.error('Error Fetching User Data:', error);
+      set({ loading: false, error: error.message || 'Failed to fetch user' });
       return undefined;
     }
   },
 
   fetchAuthUser: async () => {
+    set({ loading: true, error: null });
     try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !sessionData.session) {
-        set({ error: 'No active session. Please log in.' });
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session) {
+        set({ authUser: null, profile: null, loading: false, error: 'No active session.' });
         return;
       }
-
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) throw error;
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
       if (!user) {
-        set({ error: 'No authenticated user found' });
+         set({ authUser: null, profile: null, loading: false, error: 'No authenticated user found despite session.' });
         return;
       }
-
-      console.log('Verified User Data:', {
-        id: user.id,
-        email: user.email,
-        display_name: user.user_metadata?.full_name || 'display name'
-      });
-
-      set({ authUser: user });
-    } catch (error) {
+      set({ authUser: user, loading: false });
+      await get().fetchProfile(); // Fetch associated profile after getting authUser
+    } catch (error: any) {
       console.error('Error fetching auth user:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      set({ error: `Failed to fetch auth user: ${errorMessage}` });
+      const errorMessage = error.message || 'An unknown error occurred';
+      set({ authUser: null, profile: null, error: `Failed to fetch auth user: ${errorMessage}`, loading: false });
+    }
+  },
+
+  searchUsers: async (query: string): Promise<SearchableUser[]> => {
+    if (!query.trim()) {
+      set({ searchedUsers: [] });
+      return [];
+    }
+    set({ loadingSearch: true, error: null });
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, display_name, username, profile_picture') // Adjust if 'username' is not in your 'profiles' table
+        .or(`display_name.ilike.%${query}%,username.ilike.%${query}%`) // Search display_name and username
+        // .or(`display_name.ilike.%${query}%,email.ilike.%${query}%`) // Example if searching email from profiles table
+        .limit(10);
+
+      if (error) throw error;
+      
+      const users = (data || []).map(p => ({
+        id: p.id,
+        display_name: p.display_name,
+        username: p.username || null, // If username might not exist on all profile rows
+        profile_picture: p.profile_picture,
+        // email: p.email // if email is selected and on profiles table
+      }));
+      set({ searchedUsers: users, loadingSearch: false });
+      return users;
+    } catch (error: any) {
+      console.error('Error searching users:', error);
+      set({ error: `Search failed: ${error.message}`, loadingSearch: false, searchedUsers: [] });
+      return [];
     }
   }
 }));

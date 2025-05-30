@@ -1,11 +1,10 @@
-// src/components/teams/TeamDetailsModal.tsx
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Modal, TouchableOpacity, FlatList, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
-import { useTeamStore, TeamMemberRow } from '../../store/teamStore';
-import { useUserStore, Profile } from '../../store/userStore'; // For user profiles
-import { Tables } from 'types/database.types';
+import { View, Text, Modal, TouchableOpacity, FlatList, ActivityIndicator, Alert, Image, ScrollView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTeamStore, TeamMemberRow, TeamJoinRequestRow } from '../../store/teamStore';
+import { useUserStore, Profile } from '../../store/userStore';
 import AddMemberModal from './AddMemberModal';
-import { X, LogOut, UserPlus, Users } from 'lucide-react-native'; // Added Lucide icons
+import { X, LogOut, UserPlus, Users, ShieldCheck, Mail } from 'lucide-react-native';
 
 interface TeamDetailsModalProps {
   isVisible: boolean;
@@ -21,7 +20,6 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
     loadingTeamDetails,
     fetchTeamDetails,
     leaveTeam,
-    addTeamMember, // For admin to directly add
     requestToJoinTeam,
     fetchJoinRequests,
     approveJoinRequest,
@@ -30,25 +28,25 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
     loadingJoinRequests,
     subscribeToTeamMembers,
     subscribeToJoinRequests,
-    error: teamError,
+    error: teamStoreError,
   } = useTeamStore();
 
-  const { fetchUser } = useUserStore(); // To fetch profile details for members/requesters
+  const { fetchUser } = useUserStore();
 
   const [isAddMemberModalVisible, setAddMemberModalVisible] = useState(false);
   const [memberProfiles, setMemberProfiles] = useState<Record<string, Profile | null>>({});
   const [requesterProfiles, setRequesterProfiles] = useState<Record<string, Profile | null>>({});
 
-
-  const loadDetails = useCallback(async () => {
-    await fetchTeamDetails(teamId);
-    await fetchJoinRequests(teamId); // Fetch join requests for this team
+  const loadAllDetails = useCallback(async () => {
+    if (teamId) {
+      await fetchTeamDetails(teamId);
+      await fetchJoinRequests(teamId);
+    }
   }, [teamId, fetchTeamDetails, fetchJoinRequests]);
-
 
   useEffect(() => {
     if (isVisible && teamId) {
-      loadDetails();
+      loadAllDetails();
       const unsubscribeMembers = subscribeToTeamMembers(teamId);
       const unsubscribeRequests = subscribeToJoinRequests(teamId);
       return () => {
@@ -56,256 +54,225 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
         unsubscribeRequests();
       };
     }
-  }, [isVisible, teamId, loadDetails, subscribeToTeamMembers, subscribeToJoinRequests]);
+  }, [isVisible, teamId, loadAllDetails, subscribeToTeamMembers, subscribeToJoinRequests]);
 
-  // Fetch user profiles for team members
-  useEffect(() => {
-    const fetchProfiles = async () => {
-      const profilesToFetch = teamMembers
-        .filter(member => !memberProfiles[member.user_id])
-        .map(member => member.user_id);
-
-      if (profilesToFetch.length > 0) {
-        const fetchedProfiles: Record<string, Profile | null> = { ...memberProfiles };
-        for (const userId of profilesToFetch) {
-          const profileData = await fetchUser(userId);
-          if (profileData && 'user' in profileData) { // Check if it's not a PostgrestError
-            fetchedProfiles[userId] = profileData.user;
-          } else {
-            fetchedProfiles[userId] = null; // Handle case where profile might not be found
-          }
+  const fetchProfilesForUsers = useCallback(async (
+    userIds: string[], 
+    currentProfiles: Record<string, Profile | null>, 
+    setProfiles: React.Dispatch<React.SetStateAction<Record<string, Profile | null>>>
+  ) => {
+    const profilesToFetch = userIds.filter(id => id && !currentProfiles[id]);
+    if (profilesToFetch.length > 0) {
+      const fetchedProfilesUpdate: Record<string, Profile | null> = {};
+      for (const userId of profilesToFetch) {
+        const profileData = await fetchUser(userId);
+        if (profileData && 'user' in profileData) {
+          fetchedProfilesUpdate[userId] = profileData.user;
+        } else {
+          fetchedProfilesUpdate[userId] = null;
         }
-        setMemberProfiles(fetchedProfiles);
       }
-    };
-    if (teamMembers.length > 0) {
-      fetchProfiles();
+      setProfiles(prev => ({ ...prev, ...fetchedProfilesUpdate }));
     }
-  }, [teamMembers, fetchUser]); // Removed memberProfiles from dependency array to avoid loop
+  }, [fetchUser]);
 
+  useEffect(() => {
+    const memberUserIds = teamMembers.map(member => member.user_id).filter(Boolean);
+    if (memberUserIds.length > 0) {
+      fetchProfilesForUsers(memberUserIds as string[], memberProfiles, setMemberProfiles);
+    }
+  }, [teamMembers, fetchProfilesForUsers]);
 
  useEffect(() => {
-    const fetchReqProfiles = async () => {
-      const profilesToFetch = joinRequests
-        .filter(req => !requesterProfiles[req.user_id] && req.user_id) // Ensure user_id exists
-        .map(req => req.user_id!);
-
-      if (profilesToFetch.length > 0) {
-        const fetchedProfiles: Record<string, Profile | null> = { ...requesterProfiles };
-        for (const userId of profilesToFetch) {
-          const profileData = await fetchUser(userId);
-           if (profileData && 'user' in profileData) {
-            fetchedProfiles[userId] = profileData.user;
-          } else {
-            fetchedProfiles[userId] = null;
-          }
-        }
-        setRequesterProfiles(fetchedProfiles);
-      }
-    };
-    if (joinRequests.length > 0) {
-      fetchReqProfiles();
+    const requesterUserIds = joinRequests.map(req => req.user_id).filter(Boolean);
+    if (requesterUserIds.length > 0) {
+      fetchProfilesForUsers(requesterUserIds as string[], requesterProfiles, setRequesterProfiles);
     }
-  }, [joinRequests, fetchUser]); // Removed requesterProfiles from dependency array
-
+  }, [joinRequests, fetchProfilesForUsers]);
 
   const currentUserMembership = teamMembers.find(member => member.user_id === currentUserId);
-  const currentUserRole = currentUserMembership?.role;
-  const isUserAdmin = currentUserRole === 'admin';
+  const isUserAdmin = currentUserMembership?.role === 'admin';
+  const hasPendingRequest = joinRequests.some(req => req.user_id === currentUserId && req.status === 'pending');
 
-  const handleLeaveTeam = async () => {
-    Alert.alert(
-      "Confirm Leave",
-      "Are you sure you want to leave this team?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Leave", style: "destructive",
-          onPress: async () => {
-            await leaveTeam(teamId, currentUserId);
-            onClose(); // Close modal after leaving
-          }
-        }
-      ]
-    );
+  const handleLeaveTeam = () => {
+    Alert.alert("Leave Team", "Are you sure you want to leave this team?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Leave", style: "destructive", onPress: async () => {
+          await leaveTeam(teamId, currentUserId);
+          if (teamStoreError) Alert.alert("Error", teamStoreError); else onClose();
+      }}
+    ]);
   };
 
   const handleRequestToJoin = async () => {
     await requestToJoinTeam(teamId, currentUserId);
-    Alert.alert('Request Sent', 'Your request to join the team has been sent.');
-    loadDetails(); // Refresh details
+    if (teamStoreError) Alert.alert("Error", teamStoreError);
+    else Alert.alert('Request Sent', 'Your request to join the team has been sent.');
+    loadAllDetails();
   };
 
   const handleApproveRequest = async (requestId: string) => {
     await approveJoinRequest(requestId);
-    Alert.alert('Approved', 'Join request approved.');
-    loadDetails(); // Refresh details
+    if (teamStoreError) Alert.alert("Error", teamStoreError);
+    else Alert.alert('Approved', 'Join request approved.');
+    loadAllDetails();
   };
 
   const handleRejectRequest = async (requestId: string) => {
     await rejectJoinRequest(requestId);
-    Alert.alert('Rejected', 'Join request rejected.');
-    loadDetails(); // Refresh details
+    if (teamStoreError) Alert.alert("Error", teamStoreError);
+    else Alert.alert('Rejected', 'Join request rejected.');
+    loadAllDetails();
   };
 
-  const renderMemberItem = ({ item }: { item: TeamMemberRow }) => {
+  const renderMemberItem = ({ item, index }: { item: TeamMemberRow, index: number }) => {
     const profile = memberProfiles[item.user_id];
+    const displayName = profile?.display_name || profile?.username || item.user_id.substring(0, 8);
     return (
-      <View className="flex-row items-center p-3 border-b border-gray-200">
+      <View className={`flex-row items-center p-4 space-x-3 ${index > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
         {profile?.profile_picture ? (
-            <Image source={{uri: profile.profile_picture}} className="w-10 h-10 rounded-full mr-3 bg-gray-200" />
+            <Image source={{uri: profile.profile_picture}} className="w-10 h-10 rounded-full bg-gray-200" />
         ): (
-            <View className="w-10 h-10 rounded-full mr-3 bg-gray-300 justify-center items-center">
-                <Users size={20} color="gray" /> {/* Changed from UserGroupIcon */}
+            <View className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 justify-center items-center">
+                <Text className="text-gray-500 dark:text-gray-300 font-semibold">{displayName.charAt(0).toUpperCase()}</Text>
             </View>
         )}
         <View className="flex-1">
-            <Text className="text-base font-medium text-gray-800">
-                {profile?.display_name || profile?.username || item.user_id.substring(0, 8)}
-            </Text>
-            <Text className="text-sm text-gray-500 capitalize">{item.role}</Text>
+            <Text className="text-base font-medium text-gray-800 dark:text-gray-100">{displayName}</Text>
+            <Text className="text-sm text-gray-500 dark:text-gray-400 capitalize">{item.role}</Text>
         </View>
-        {/* Optionally add kick button for admins here */}
+        {item.user_id === currentUserId && <ShieldCheck size={20} className="text-sky-500" />}
       </View>
     );
   };
 
-  const renderJoinRequestItem = ({ item }: { item: Tables<'team_join_requests'> }) => {
-    if (!item.user_id) return null; // Should not happen with proper data
+  const renderJoinRequestItem = ({ item, index }: { item: TeamJoinRequestRow, index: number }) => {
+    if (!item.user_id) return null;
     const profile = requesterProfiles[item.user_id];
+    const displayName = profile?.display_name || profile?.username || item.user_id.substring(0,8);
     return (
-      <View className="flex-row items-center p-3 border-b border-gray-200 justify-between">
-        <View className="flex-row items-center">
+      <View className={`flex-row items-center p-4 space-x-3 justify-between ${index > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
+        <View className="flex-row items-center space-x-3 flex-1">
              {profile?.profile_picture ? (
-                <Image source={{uri: profile.profile_picture}} className="w-10 h-10 rounded-full mr-3 bg-gray-200" />
+                <Image source={{uri: profile.profile_picture}} className="w-10 h-10 rounded-full bg-gray-200" />
             ): (
-                <View className="w-10 h-10 rounded-full mr-3 bg-gray-300 justify-center items-center">
-                    <Users size={20} color="gray" /> {/* Changed from UserGroupIcon */}
+                <View className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 justify-center items-center">
+                     <Text className="text-gray-500 dark:text-gray-300 font-semibold">{displayName.charAt(0).toUpperCase()}</Text>
                 </View>
             )}
-            <Text className="text-base text-gray-700">{profile?.display_name || profile?.username || item.user_id.substring(0,8)}</Text>
+            <Text className="text-base text-gray-700 dark:text-gray-200 flex-shrink mr-2" numberOfLines={1}>{displayName}</Text>
         </View>
-        <View className="flex-row">
-          <TouchableOpacity onPress={() => handleApproveRequest(item.id)} className="bg-green-500 p-2 rounded-md mr-2">
-            <Text className="text-white text-xs">Approve</Text>
+        <View className="flex-row space-x-2">
+          <TouchableOpacity onPress={() => handleApproveRequest(item.id)} className="bg-green-500 py-1.5 px-3 rounded-md active:bg-green-600">
+            <Text className="text-white text-xs font-medium">Approve</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleRejectRequest(item.id)} className="bg-red-500 p-2 rounded-md">
-            <Text className="text-white text-xs">Reject</Text>
+          <TouchableOpacity onPress={() => handleRejectRequest(item.id)} className="bg-red-500 py-1.5 px-3 rounded-md active:bg-red-600">
+            <Text className="text-white text-xs font-medium">Reject</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   };
-
 
   if (!isVisible) return null;
 
   return (
     <Modal
       animationType="slide"
-      transparent={true}
+      transparent={false}
       visible={isVisible}
       onRequestClose={onClose}
     >
-      <View className="flex-1 justify-end bg-black/50">
-        <View className="bg-white rounded-t-2xl shadow-xl max-h-[90vh]">
-          <View className="flex-row justify-between items-center p-4 border-b border-gray-200">
-            <Text className="text-xl font-bold text-gray-800">{teamDetails?.name || 'Team Details'}</Text>
-            <TouchableOpacity onPress={onClose} className="p-1">
-              <X size={28} color="gray" />
+      <View className="flex-1 bg-gray-50 dark:bg-gray-900" >
+          <View className="flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <Text className="text-xl font-semibold text-gray-800 dark:text-white">{teamDetails?.name || 'Team Details'}</Text>
+            <TouchableOpacity onPress={onClose} className="p-2 rounded-full active:bg-gray-200 dark:active:bg-gray-700">
+              <X size={24} className="text-gray-600 dark:text-gray-300" />
             </TouchableOpacity>
           </View>
 
           {loadingTeamDetails && !teamDetails ? (
-            <View className="p-6 items-center justify-center h-64">
-              <ActivityIndicator size="large" color="#0000ff" />
+            <View className="flex-1 p-6 items-center justify-center">
+              <ActivityIndicator size="large" color="#007AFF" />
             </View>
-          ) : teamError && !teamDetails ? (
-             <View className="p-6 items-center justify-center">
-                <Text className="text-red-500 text-center">Error: {teamError}</Text>
-                 <TouchableOpacity onPress={loadDetails} className="mt-2 bg-blue-500 p-2 rounded">
+          ) : teamStoreError && !teamDetails ? (
+             <View className="flex-1 p-6 items-center justify-center">
+                <Text className="text-red-500 text-center">Error: {teamStoreError}</Text>
+                 <TouchableOpacity onPress={loadAllDetails} className="mt-3 bg-sky-500 py-2 px-4 rounded-md active:bg-sky-600">
                     <Text className="text-white">Retry</Text>
                 </TouchableOpacity>
              </View>
           ) : teamDetails ? (
-            <ScrollView className="p-1">
-                <View className="p-4">
+            <ScrollView>
+                <View className="items-center p-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                     {teamDetails.logo_url && (
-                        <Image source={{uri: teamDetails.logo_url}} className="w-24 h-24 rounded-full self-center mb-4 bg-gray-200" />
+                        <Image source={{uri: teamDetails.logo_url}} className="w-24 h-24 rounded-full mb-4 bg-gray-200 border-2 border-gray-300 dark:border-gray-600" />
                     )}
-                    <Text className="text-2xl font-bold text-center text-gray-800 mb-2">{teamDetails.name}</Text>
-                    <Text className="text-base text-gray-600 text-center mb-6">{teamDetails.description || 'No description provided.'}</Text>
-
-                    {/* Action Buttons */}
-                    <View className="flex-row justify-center space-x-2 mb-6">
+                    <Text className="text-2xl font-bold text-center text-gray-800 dark:text-white mb-1">{teamDetails.name}</Text>
+                    <Text className="text-base text-gray-600 dark:text-gray-400 text-center mb-1">{teamDetails.description || 'No description.'}</Text>
+                    <Text className={`text-xs ${teamDetails.is_public ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'} font-medium`}>
+                        {teamDetails.is_public ? 'Public Team' : 'Private Team'}
+                    </Text>
+                </View>
+                
+                <View className="py-4 px-2">
+                    <View className="flex-row justify-center space-x-3 my-2">
                         {currentUserMembership && (
-                        <TouchableOpacity
-                            onPress={handleLeaveTeam}
-                            className="bg-red-500 py-2 px-4 rounded-lg flex-row items-center"
-                        >
-                            <LogOut size={20} color="white" className="mr-1"/> {/* Changed from ArrowLeftOnRectangleIcon */}
+                        <TouchableOpacity onPress={handleLeaveTeam} className="bg-red-600 py-3 px-5 rounded-lg flex-row items-center space-x-2 active:bg-red-700">
+                            <LogOut size={18} color="white"/>
                             <Text className="text-white font-semibold">Leave Team</Text>
                         </TouchableOpacity>
                         )}
-                        {!currentUserMembership && teamDetails && ( // Assuming is_public field
-                        <TouchableOpacity
-                            onPress={handleRequestToJoin}
-                            className="bg-green-500 py-2 px-4 rounded-lg flex-row items-center"
-                        >
-                            <UserPlus size={20} color="white" className="mr-1"/> {/* Changed from UserPlusIcon */}
+                        {!currentUserMembership && teamDetails.is_public && !hasPendingRequest && (
+                        <TouchableOpacity onPress={handleRequestToJoin} className="bg-green-600 py-3 px-5 rounded-lg flex-row items-center space-x-2 active:bg-green-700">
+                            <UserPlus size={18} color="white"/>
                             <Text className="text-white font-semibold">Request to Join</Text>
                         </TouchableOpacity>
                         )}
+                        {hasPendingRequest && (
+                             <View className="bg-yellow-100 dark:bg-yellow-700 py-3 px-5 rounded-lg flex-row items-center space-x-2">
+                                <Mail size={18} className="text-yellow-600 dark:text-yellow-200"/>
+                                <Text className="text-yellow-700 dark:text-yellow-100 font-semibold">Request Pending</Text>
+                            </View>
+                        )}
                          {isUserAdmin && (
-                           <TouchableOpacity
-                             onPress={() => setAddMemberModalVisible(true)}
-                             className="bg-blue-500 py-2 px-4 rounded-lg flex-row items-center"
-                           >
-                             <UserPlus size={20} color="white" className="mr-1"/> {/* Changed from UserPlusIcon */}
+                           <TouchableOpacity onPress={() => setAddMemberModalVisible(true)} className="bg-sky-500 py-3 px-5 rounded-lg flex-row items-center space-x-2 active:bg-sky-600">
+                             <UserPlus size={18} color="white"/>
                              <Text className="text-white font-semibold">Add Member</Text>
                            </TouchableOpacity>
                          )}
                     </View>
 
+                    <View className="mt-6">
+                        <Text className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase px-4 mb-1">Members ({teamMembers.length})</Text>
+                        {loadingTeamDetails && teamMembers.length === 0 ? (<ActivityIndicator className="mt-4"/>
+                        ) : teamMembers.length > 0 ? (
+                            <View className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                {teamMembers.map((item, index) => renderMemberItem({item, index}))}
+                            </View>
+                        ) : (
+                            <Text className="text-gray-500 dark:text-gray-400 text-center py-4">No members in this team yet.</Text>
+                        )}
+                    </View>
 
-                    {/* Team Members List */}
-                    <Text className="text-lg font-semibold text-gray-700 mb-2 mt-4">Members ({teamMembers.length})</Text>
-                    {loadingTeamDetails && teamMembers.length === 0 ? (
-                        <ActivityIndicator />
-                    ) : teamMembers.length > 0 ? (
-                        <FlatList
-                            data={teamMembers}
-                            keyExtractor={(item) => item.id}
-                            renderItem={renderMemberItem}
-                            scrollEnabled={false} // If inside ScrollView
-                        />
-                    ) : (
-                        <Text className="text-gray-500">No members yet.</Text>
-                    )}
-
-                    {/* Join Requests (Admin View) */}
                     {isUserAdmin && (
-                        <>
-                            <Text className="text-lg font-semibold text-gray-700 mb-2 mt-6">Join Requests ({joinRequests.length})</Text>
-                            {loadingJoinRequests ? (
-                                <ActivityIndicator />
-                            ) : joinRequests.length > 0 ? (
-                                <FlatList
-                                    data={joinRequests.filter(req => req.status === 'pending')} // Only show pending
-                                    keyExtractor={(item) => item.id}
-                                    renderItem={renderJoinRequestItem}
-                                    scrollEnabled={false}
-                                />
+                        <View className="mt-8">
+                            <Text className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase px-4 mb-1">Join Requests ({joinRequests.filter(req => req.status === 'pending').length})</Text>
+                            {loadingJoinRequests ? (<ActivityIndicator className="mt-4"/>
+                            ) : joinRequests.filter(req => req.status === 'pending').length > 0 ? (
+                                 <View className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                    {joinRequests.filter(req => req.status === 'pending').map((item, index) => renderJoinRequestItem({item, index}))}
+                                </View>
                             ) : (
-                                <Text className="text-gray-500">No pending join requests.</Text>
+                                <Text className="text-gray-500 dark:text-gray-400 text-center py-4">No pending join requests.</Text>
                             )}
-                        </>
+                        </View>
                     )}
                 </View>
             </ScrollView>
           ) : (
-             <View className="p-6 items-center justify-center">
-                <Text className="text-gray-500">Team not found or could not be loaded.</Text>
+             <View className="flex-1 p-6 items-center justify-center">
+                <Text className="text-gray-500 dark:text-gray-400">Team not found.</Text>
              </View>
           )}
 
@@ -317,7 +284,6 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
               currentMembers={teamMembers.map(m => m.user_id)}
             />
           )}
-        </View>
       </View>
     </Modal>
   );

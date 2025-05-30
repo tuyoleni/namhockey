@@ -1,157 +1,125 @@
-// src/components/teams/AddMemberModal.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Alert, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTeamStore } from '../../store/teamStore';
-import { useUserStore, Profile } from '../../store/userStore'; // For searching users
-import { X, Search, UserPlus, CheckCircle } from 'lucide-react-native'; // Changed import
+import { useUserStore, SearchableUser } from '../../store/userStore'; // Assuming SearchableUser is exported
+import { X, Search, UserPlus, CheckCircle, UserCircle2 } from 'lucide-react-native';
 
 interface AddMemberModalProps {
   isVisible: boolean;
   onClose: () => void;
   teamId: string;
-  currentMembers: string[]; // Array of user_ids already in the team
+  currentMembers: string[]; 
 }
 
-// Changed to pick only known Profile fields and add email separately
-type SearchableUser = Pick<Profile, 'id' | 'display_name' | 'username' | 'profile_picture'> & {
-  email?: string | null; // email is now optional and explicitly typed here
-};
-
-
 const AddMemberModal: React.FC<AddMemberModalProps> = ({ isVisible, onClose, teamId, currentMembers }) => {
-  const { addTeamMember, loadingTeamDetails } = useTeamStore(); // loadingTeamDetails can be generic loading state
-  const { fetchUser, profile: currentUserProfile, authUser } = useUserStore(); // Use `profile` if it contains a list of all users, or implement search
+  const { addTeamMember, loadingTeamDetails } = useTeamStore();
+  const { authUser, searchUsers, searchedUsers, loadingSearch } = useUserStore(); 
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchableUser[]>([]);
-  const [loadingSearch, setLoadingSearch] = useState(false);
-  const [allUsers, setAllUsers] = useState<SearchableUser[]>([]); // Placeholder for all users
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
-
-  // THIS IS A PLACEHOLDER/SIMPLIFIED SEARCH.
-  // In a real app, you'd ideally have a backend endpoint to search users
-  // or fetch all users if the number is small and filter client-side.
-  // For now, we'll simulate fetching a few users or filtering a static list.
   useEffect(() => {
-    const loadAllUsers = async () => {
-        // This is a simplified approach. Ideally, your `userStore` or a dedicated service
-        // would provide a way to search users by query (displayName, email).
-        // For this example, let's assume you might fetch a list of users
-        // (not scalable for many users) or you have a specific search function.
-
-        // If you had a userStore.searchUsers(query) function:
-        // const users = await userStore.searchUsers(''); // Fetch some initial users or all
-        // setAllUsers(users as SearchableUser[]);
-
-        // --- SIMULATED USER FETCH ---
-        // Replace this with actual user fetching/searching logic
-        setLoadingSearch(true);
-        // Simulate fetching a few users. You'd replace this with a call to your userStore.
-        // For example, if userStore had a `WorkspaceAllUsers` (not scalable for large DBs):
-        // const { data: usersData, error } = await supabase.from('profiles').select('id, display_name, username, profile_picture, email');
-        // if (usersData) setAllUsers(usersData as SearchableUser[]);
-        // else console.error("Failed to fetch users for search", error)
-        // For demonstration, using a timeout and dummy data:
-        setTimeout(() => {
-             const dummyUsers: SearchableUser[] = [
-                // You would fetch these from Supabase profiles table
-                // { id: 'user1-uuid', display_name: 'Alice Wonderland', username: 'alice', profile_picture: null, email: 'alice@example.com' },
-                // { id: 'user2-uuid', display_name: 'Bob The Builder', username: 'bob', profile_picture: null, email: 'bob@example.com' },
-                // { id: 'user3-uuid', display_name: 'Charlie Chaplin', username: 'charlie', profile_picture: null, email: 'charlie@example.com'},
-            ];
-            // If you had current user from authUser, you might fetch their profile details
-            // to make it available for search or pre-populate allUsers
-            // For now, ensure allUsers is an empty array or populated appropriately.
-            // If you have a fetchAllUsers method in your userStore:
-            // const users = await userStore.fetchAllUsers(); setAllUsers(users);
-            setAllUsers([]); // Start with empty or fetch appropriately
-            setLoadingSearch(false);
-        }, 500);
-        // --- END SIMULATION ---
-    };
-    if (isVisible) {
-        loadAllUsers();
+    if (!isVisible) {
+      setSearchQuery('');
+      useUserStore.setState({ searchedUsers: [] }); // Clear previous search results from store on close
     }
   }, [isVisible]);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 500); 
 
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (debouncedQuery.trim()) {
+      searchUsers(debouncedQuery.trim());
+    } else {
+      useUserStore.setState({ searchedUsers: [] }); // Clear results if query is empty
     }
-    setLoadingSearch(true);
-    const lowerCaseQuery = query.toLowerCase();
-    const filteredUsers = allUsers.filter(user => {
-      const displayNameMatch = user.display_name && typeof user.display_name === 'string' && user.display_name.toLowerCase().includes(lowerCaseQuery);
-      const usernameMatch = user.username && typeof user.username === 'string' && user.username.toLowerCase().includes(lowerCaseQuery);
-      const emailMatch = user.email && typeof user.email === 'string' && user.email.toLowerCase().includes(lowerCaseQuery);
-      
-      return (displayNameMatch || usernameMatch || emailMatch) &&
-             user.id !== authUser?.id;
-    });
-    setSearchResults(filteredUsers);
-    setLoadingSearch(false);
-  }, [allUsers, authUser]);
+  }, [debouncedQuery, searchUsers]);
 
 
-  const handleAddMember = async (userId: string) => {
-    if (currentMembers.includes(userId)) {
+  const handleAddMemberToList = async (userIdToAdd: string) => {
+    if (currentMembers.includes(userIdToAdd)) {
       Alert.alert('Already Member', 'This user is already a member of the team.');
       return;
     }
-    const result = await addTeamMember(teamId, userId, 'member'); // Default role 'member'
+    const result = await addTeamMember(teamId, userIdToAdd, 'member'); 
     if (result) {
       Alert.alert('Success', 'Member added successfully!');
-      // Optionally, update searchResults or clear them
-      setSearchResults(prevResults => prevResults.filter(user => user.id !== userId));
-      // Consider closing modal or allowing more additions
+      onClose(); 
     } else {
-      Alert.alert('Error', 'Failed to add member.');
+      Alert.alert('Error', useTeamStore.getState().error || 'Failed to add member.');
     }
   };
 
   const renderUserItem = ({ item }: { item: SearchableUser }) => {
     const isAlreadyMember = currentMembers.includes(item.id);
-    const isSelf = item.id === authUser?.id; // Prevent adding self again if somehow shown
+    const isSelf = item.id === authUser?.id;
 
-    if (isSelf) return null; // Don't show current user in results to be added
+    if (isSelf) return null;
 
     return (
-      <View className="flex-row items-center justify-between p-3 border-b border-gray-200">
-        <View className="flex-row items-center flex-1 mr-2">
+      <View className="flex-row items-center justify-between p-3 border-b border-gray-100" key={item.id}>
+        <View className="flex-row items-center flex-1 mr-2 space-x-3">
           {item.profile_picture ? (
-            <Image source={{ uri: item.profile_picture }} className="w-10 h-10 rounded-full mr-3 bg-gray-200" />
+            <Image source={{ uri: item.profile_picture }} className="w-10 h-10 rounded-full bg-gray-200" />
           ) : (
-            <View className="w-10 h-10 rounded-full mr-3 bg-gray-300 justify-center items-center">
-                <UserPlus size={20} color="gray" /> {/* Changed Icon */}
+            <View className="w-10 h-10 rounded-full bg-gray-200 justify-center items-center">
+                <UserCircle2 size={24} className="text-gray-400" />
             </View>
           )}
           <View className="flex-1">
-            <Text className="text-base font-medium text-gray-800" numberOfLines={1}>{item.display_name || item.username || ''}</Text>
-            {/* Ensure item.email is a string or empty string for Text component */}
-            <Text className="text-sm text-gray-500" numberOfLines={1}>{(item.email && typeof item.email === 'string') ? item.email : ''}</Text>
+            <Text className="text-base font-medium text-gray-800" numberOfLines={1}>{item.display_name}</Text>
+            {item.email && <Text className="text-sm text-gray-500" numberOfLines={1}>{item.email}</Text>}
           </View>
         </View>
         {isAlreadyMember ? (
-            <View className="flex-row items-center p-2 bg-green-100 rounded-md">
-                <CheckCircle size={18} color="green" /> {/* Changed Icon */}
-                <Text className="text-green-700 text-xs ml-1">Member</Text>
+            <View className="flex-row items-center py-2 px-3 bg-green-50 rounded-md space-x-1.5">
+                <CheckCircle size={16} className="text-green-600" />
+                <Text className="text-green-600 text-xs font-medium">Member</Text>
             </View>
         ) : (
             <TouchableOpacity
-            onPress={() => handleAddMember(item.id)}
-            disabled={loadingTeamDetails}
-            className={`py-2 px-3 rounded-md ${loadingTeamDetails ? 'bg-gray-300' : 'bg-blue-500'}`}
+              onPress={() => handleAddMemberToList(item.id)}
+              disabled={loadingTeamDetails}
+              className={`py-2 px-3.5 rounded-md ${loadingTeamDetails ? 'bg-gray-300' : 'bg-sky-500 active:bg-sky-600'}`}
             >
-            {loadingTeamDetails ? <ActivityIndicator size="small" color="white" /> : <Text className="text-white text-xs font-semibold">Add</Text>}
+              {loadingTeamDetails ? 
+                <ActivityIndicator size="small" color="white" /> : 
+                <Text className="text-white text-xs font-semibold">Add to Team</Text>
+              }
             </TouchableOpacity>
         )}
       </View>
     );
   };
 
+  const renderEmptyState = () => {
+    if (loadingSearch) {
+      return <ActivityIndicator className="my-6" color="#007AFF" />;
+    }
+    if (debouncedQuery.trim() && searchedUsers.length === 0) {
+      return <Text className="text-center text-gray-500 my-6 px-4">No users found matching "{debouncedQuery}".</Text>;
+    }
+    if (!debouncedQuery.trim()) {
+        return (
+            <View className="items-center my-6 p-4">
+                 <Search size={32} className="text-gray-300 mb-3"/>
+                 <Text className="text-center text-gray-500">
+                    Start typing to search for users by name or username.
+                 </Text>
+            </View>
+        );
+    }
+    return null;
+  };
 
   return (
     <Modal
@@ -160,50 +128,42 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isVisible, onClose, tea
       visible={isVisible}
       onRequestClose={onClose}
     >
-      <View className="flex-1 justify-center items-center bg-black/50 p-4">
-        <View className="bg-white p-5 rounded-xl shadow-xl w-full max-w-lg max-h-[80vh]">
-          <View className="flex-row justify-between items-center mb-4">
+      <SafeAreaView className="flex-1 justify-center items-center bg-black/60 p-4" edges={['top', 'bottom']}>
+        <View className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+          <View className="flex-row justify-between items-center p-4 border-b border-gray-200">
             <Text className="text-xl font-bold text-gray-800">Add New Member</Text>
-            <TouchableOpacity onPress={onClose} className="p-1">
-              <X size={28} color="gray" /> {/* Changed Icon */}
+            <TouchableOpacity onPress={onClose} className="p-1 active:bg-gray-100 rounded-full">
+              <X size={24} className="text-gray-500" />
             </TouchableOpacity>
           </View>
 
-          <View className="flex-row items-center border border-gray-300 rounded-lg p-2 mb-4">
-            <Search size={20} color="gray" className="mr-2" /> {/* Changed Icon */}
-            <TextInput
-              placeholder="Search by name, username, or email..."
-              value={searchQuery}
-              onChangeText={handleSearch}
-              className="flex-1 text-base h-10"
-              autoCapitalize="none"
-            />
+          <View className="p-4">
+            <View className="flex-row items-center border border-gray-300 rounded-lg p-0.5 bg-gray-50 focus-within:border-sky-500">
+              <View className="pl-2.5 pr-1.5">
+                <Search size={20} className="text-gray-400" />
+              </View>
+              <TextInput
+                placeholder="Search by name or username..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                className="flex-1 text-base h-11 text-gray-800 py-2"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
           </View>
-
-          {loadingSearch && <ActivityIndicator className="my-4" />}
-
-          {!loadingSearch && searchQuery.trim() && searchResults.length === 0 && (
-            <Text className="text-center text-gray-500 my-4">No users found matching "{searchQuery}".</Text>
-          )}
-          {!loadingSearch && allUsers.length === 0 && !searchQuery.trim() && (
-            <Text className="text-center text-gray-500 my-4">
-                Start typing to search for users.
-                {/* (Note: User search currently uses placeholder data or requires a full user list. Implement backend search for production.) */}
-            </Text>
-          )}
-
+          
           <FlatList
-            data={searchResults}
+            data={searchedUsers}
             keyExtractor={(item) => item.id}
             renderItem={renderUserItem}
-            ListEmptyComponent={
-                !loadingSearch && searchQuery.trim() ? (
-                    <Text className="text-center text-gray-500 py-4">No users found.</Text>
-                ) : null
-            }
+            ListEmptyComponent={renderEmptyState}
+            className="flex-1" 
+            contentContainerClassName="pb-4"
+            keyboardShouldPersistTaps="handled"
           />
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };

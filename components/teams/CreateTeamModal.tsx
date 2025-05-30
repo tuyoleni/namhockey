@@ -1,6 +1,6 @@
-// src/components/teams/CreateTeamModal.tsx
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, Alert, ScrollView, Switch, Platform } from 'react-native'; // Added Switch and Platform
+import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, Alert, ScrollView, Switch, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTeamStore } from '../../store/teamStore';
 import { X } from 'lucide-react-native';
 
@@ -14,117 +14,114 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isVisible, onClose, c
   const { addTeam, loadingTeams } = useTeamStore();
   const [teamName, setTeamName] = useState('');
   const [description, setDescription] = useState('');
-  const [logoUrl, setLogoUrl] = useState(''); // State for logo URL
-  const [isPublic, setIsPublic] = useState(true); // State for is_public, defaulting to true
+  const [logoUrl, setLogoUrl] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
 
   const handleCreateTeam = async () => {
     if (!teamName.trim()) {
-      Alert.alert('Validation Error', 'Team name is required.');
+      Alert.alert('Required Field', 'Team name cannot be empty.');
       return;
     }
     if (!currentUserId) {
-        Alert.alert('Error', 'User not identified. Cannot create team.');
+        Alert.alert('Authentication Error', 'User not identified. Please try again.');
         return;
     }
 
     const newTeamData = {
       name: teamName.trim(),
       description: description.trim() || null,
-      logo_url: logoUrl.trim() || null, // Use state for logo_url
-      is_public: isPublic, // Use state for is_public
+      logo_url: logoUrl.trim() || null,
+      is_public: isPublic,
     };
 
     const result = await addTeam(newTeamData, currentUserId);
     if (result) {
-      Alert.alert('Success', 'Team created successfully!');
+      Alert.alert('Team Created!', `${teamName.trim()} has been successfully created.`);
       setTeamName('');
       setDescription('');
-      setLogoUrl(''); // Clear logoUrl
-      setIsPublic(true); // Reset isPublic
+      setLogoUrl('');
+      setIsPublic(true);
       onClose();
     } else {
-      Alert.alert('Error', 'Failed to create team. Please try again.');
-      // Error is also handled in store, this is an additional UI feedback
+      Alert.alert('Creation Failed', 'Could not create the team. Please try again later.');
     }
   };
 
   return (
     <Modal
       animationType="slide"
-      transparent={true}
+      transparent={false}
       visible={isVisible}
       onRequestClose={onClose}
     >
-      <View className="flex-1 justify-center items-center bg-black/50">
-        <View className="bg-white p-6 rounded-xl shadow-xl w-11/12 max-w-md">
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-2xl font-bold text-gray-800">Create New Team</Text>
-              <TouchableOpacity onPress={onClose} className="p-1">
-                <X size={28} color="gray" />
-              </TouchableOpacity>
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-1">Team Name <Text className="text-red-500">*</Text></Text>
-              <TextInput
-                placeholder="Enter team name"
-                value={teamName}
-                onChangeText={setTeamName}
-                className="border border-gray-300 p-3 rounded-lg text-base focus:border-blue-500"
-              />
-            </View>
-
-            <View className="mb-6">
-              <Text className="text-sm font-medium text-gray-700 mb-1">Description (Optional)</Text>
-              <TextInput
-                placeholder="Describe your team"
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={3}
-                className="border border-gray-300 p-3 rounded-lg text-base h-24 focus:border-blue-500"
-                textAlignVertical="top"
-              />
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-1">Logo URL (Optional)</Text>
-              <TextInput
-                placeholder="Enter team logo URL"
-                value={logoUrl}
-                onChangeText={setLogoUrl}
-                className="border border-gray-300 p-3 rounded-lg text-base focus:border-blue-500"
-                autoCapitalize="none"
-                keyboardType="url"
-              />
-            </View>
-
-            <View className="mb-6 flex-row justify-between items-center">
-              <Text className="text-sm font-medium text-gray-700">Make Team Public?</Text>
-              <Switch
-                trackColor={{ false: "#767577", true: Platform.OS === 'android' ? "#81b0ff" : "#34C759" }}
-                thumbColor={isPublic ? (Platform.OS === 'android' ? "#3b82f6" : "#f4f3f4") : "#f4f3f4"}
-                ios_backgroundColor="#3e3e3e"
-                onValueChange={setIsPublic}
-                value={isPublic}
-              />
-            </View>
-
-             <TouchableOpacity
-              onPress={handleCreateTeam}
-              disabled={loadingTeams}
-              className={`py-3 px-4 rounded-lg ${loadingTeams ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} shadow-md`}
-            >
-              {loadingTeams ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text className="text-white text-center font-semibold text-base">Create Team</Text>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
+      <SafeAreaView className="flex-1 bg-gray-100" edges={['top', 'bottom']}>
+        <View className="flex-row justify-between items-center p-4 border-b border-gray-200 bg-white">
+          <Text className="text-xl font-semibold text-gray-800">Create New Team</Text>
+          <TouchableOpacity onPress={onClose} className="p-2 rounded-full active:bg-gray-200">
+            <X size={24} className="text-gray-600" />
+          </TouchableOpacity>
         </View>
-      </View>
+
+        <ScrollView className="flex-1" contentContainerClassName="p-4" keyboardShouldPersistTaps="handled">
+          <View className="bg-white p-5 rounded-lg mb-4">
+            <Text className="text-base font-medium text-gray-700 mb-1">Team Name <Text className="text-red-500">*</Text></Text>
+            <TextInput
+              placeholder="Official team name"
+              value={teamName}
+              onChangeText={setTeamName}
+              className="border border-gray-300 p-3 rounded-lg text-base text-gray-900 focus:border-sky-500 bg-white"
+            />
+          </View>
+
+          <View className="bg-white p-5 rounded-lg mb-4">
+            <Text className="text-base font-medium text-gray-700 mb-1">Description</Text>
+            <TextInput
+              placeholder="Briefly describe your team (optional)"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={4}
+              className="border border-gray-300 p-3 rounded-lg text-base h-28 focus:border-sky-500 bg-white"
+              textAlignVertical="top"
+            />
+          </View>
+
+          <View className="bg-white p-5 rounded-lg mb-4">
+            <Text className="text-base font-medium text-gray-700 mb-1">Logo URL</Text>
+            <TextInput
+              placeholder="https://example.com/logo.png (optional)"
+              value={logoUrl}
+              onChangeText={setLogoUrl}
+              className="border border-gray-300 p-3 rounded-lg text-base text-gray-900 focus:border-sky-500 bg-white"
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
+
+          <View className="bg-white p-5 rounded-lg mb-6 flex-row justify-between items-center">
+            <Text className="text-base font-medium text-gray-700">Make Team Public?</Text>
+            <Switch
+              trackColor={{ false: "#E5E7EB", true: Platform.OS === 'android' ? "#7DD3FC" : "#34C759" }}
+              thumbColor={isPublic ? (Platform.OS === 'android' ? "#0284C7" : "#f4f3f4") : "#f4f3f4"}
+              ios_backgroundColor="#D1D5DB"
+              onValueChange={setIsPublic}
+              value={isPublic}
+            />
+          </View>
+
+           <TouchableOpacity
+            onPress={handleCreateTeam}
+            disabled={loadingTeams}
+            className={`py-3.5 px-4 rounded-lg ${loadingTeams ? 'bg-gray-400' : 'bg-sky-500 active:bg-sky-600'} shadow`}
+          >
+            {loadingTeams ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-white text-center font-semibold text-lg">Create Team</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   );
 };

@@ -7,7 +7,8 @@ import {
   Platform,
 } from 'react-native';
 import Modal from 'react-native-modal';
-import { Calendar, MapPin, Clock, Info, Repeat, MoreHorizontal } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Calendar, MapPin, Clock, Repeat, MoreHorizontal } from 'lucide-react-native';
 import { EventWithTeams } from 'store/eventStore';
 import { useUserStore } from 'store/userStore';
 
@@ -16,7 +17,6 @@ interface EventItemProps {
   onPress?: (event: EventWithTeams) => void;
   onDelete?: (eventId: string) => void;
   onUpdate?: (event: EventWithTeams) => void;
-  onViewRegistrations?: (eventId: string) => void;
 }
 
 const EventItem: React.FC<EventItemProps> = ({
@@ -24,13 +24,12 @@ const EventItem: React.FC<EventItemProps> = ({
   onPress,
   onDelete,
   onUpdate,
-  onViewRegistrations,
 }) => {
+  const router = useRouter();
   const { authUser } = useUserStore();
   const isCreator = authUser?.id === event.created_by_profile_id;
   const [isMenuVisible, setMenuVisible] = useState(false);
 
-  // Format dates in Apple-style
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('en-US', {
@@ -47,48 +46,30 @@ const EventItem: React.FC<EventItemProps> = ({
   const createdAt = event.created_at ? formatDate(event.created_at) : 'N/A';
   const updatedAt = event.updated_at ? formatDate(event.updated_at) : 'N/A';
   
-  const showRegistrationsButton = event.event_type === 'Tournament' || event.event_type === 'Meeting';
+  const canViewRegistrations = event.event_type === 'Tournament' || event.event_type === 'Meeting';
   const showTeamInfo = event.event_type === 'Match' || event.event_type === 'Tournament';
-  const showMenuButton = (showRegistrationsButton && onViewRegistrations) || (isCreator && onUpdate) || (isCreator && onDelete);
+  const showMenuButton = canViewRegistrations || (isCreator && onUpdate) || (isCreator && onDelete);
 
-  // Get card style based on event type
   const getCardStyle = () => {
     switch (event.event_type) {
-      case 'Match':
-        return 'bg-[#0A84FF]'; // Vibrant blue background for matches (Apple blue)
-      case 'Tournament':
-        return 'bg-[#5E5CE6]'; // Vibrant purple background for tournaments (Apple purple)
-      case 'Meeting':
-        return 'bg-[#FF9F0A]'; // Vibrant orange background for meetings (Apple orange)
-      default:
-        return 'bg-[#30D158]'; // Vibrant green for other types (Apple green)
+      case 'Match': return 'bg-[#0A84FF]';
+      case 'Tournament': return 'bg-[#5E5CE6]';
+      case 'Meeting': return 'bg-[#FF9F0A]';
+      default: return 'bg-[#30D158]';
     }
   };
 
-  const getTextColor = () => {
-    return 'text-white';
-  };
+  const getTextColor = () => 'text-white';
 
-  const getStatusColor = () => {
-    switch (event.status?.toLowerCase()) {
-      case 'upcoming':
-        return '#34C759'; // Apple green
-      case 'live':
-        return '#FF3B30'; // Apple red
-      case 'completed':
-        return '#8E8E93'; // Apple gray
-      default:
-        return '#8E8E93'; // Default gray
-    }
-  };
+  const handleMenuTrigger = () => setMenuVisible(true);
 
-  const handleMenuPress = () => {
-    setMenuVisible(true);
-  };
-
-  const handleMenuItemPress = (action?: () => void) => {
+  const executeMenuAction = (action?: () => void) => {
     action?.();
     setMenuVisible(false);
+  };
+
+  const navigateToEventDetails = () => {
+    router.push(`/events/${event.id}`);
   };
 
   return (
@@ -101,23 +82,17 @@ const EventItem: React.FC<EventItemProps> = ({
         shadowRadius: 8,
         elevation: 5,
       }}
-      onPress={() => onPress?.(event)}
+      onPress={() => onPress ? onPress(event) : navigateToEventDetails()}
       activeOpacity={0.9}
     >
-      {/* Card Content */}
       <View className="p-4">
-        {/* Header with Title and Type */}
         <View className="flex-row justify-between items-start mb-4">
           <View className="flex-1 mr-2">
             <Text className={`text-xl font-bold ${getTextColor()}`} numberOfLines={2}>
               {event.title}
             </Text>
-            
             <View className="flex-row items-center mt-2">
-              <View 
-                className="h-3 w-3 rounded-full mr-2"
-                style={{ backgroundColor: '#FFFFFF' }}
-              />
+              <View className="h-3 w-3 rounded-full mr-2 bg-white" />
               <Text className={`text-sm font-medium ${getTextColor()} opacity-90`}>
                 {event.status} • {event.event_type}
               </Text>
@@ -126,7 +101,7 @@ const EventItem: React.FC<EventItemProps> = ({
           
           {showMenuButton && (
             <TouchableOpacity 
-              onPress={handleMenuPress} 
+              onPress={handleMenuTrigger} 
               className="p-2 -mt-1 -mr-1 bg-white/20 backdrop-blur-md rounded-full"
               style={{
                 shadowColor: '#000',
@@ -142,7 +117,6 @@ const EventItem: React.FC<EventItemProps> = ({
           )}
         </View>
         
-        {/* Event Details */}
         <View className="bg-white/20 backdrop-blur-md rounded-xl p-4 mb-3">
           <View className="flex-row items-center mb-3">
             <Calendar size={16} color="#FFFFFF" strokeWidth={2.5} />
@@ -150,14 +124,12 @@ const EventItem: React.FC<EventItemProps> = ({
               {startTime} {endTime !== 'N/A' && `- ${endTime}`}
             </Text>
           </View>
-          
           <View className="flex-row items-center mb-3">
             <MapPin size={16} color="#FFFFFF" strokeWidth={2.5} />
             <Text className={`text-sm font-medium ${getTextColor()} ml-3`} numberOfLines={1}>
               {event.location_name || 'Unknown Location'}
             </Text>
           </View>
-          
           {event.location_address && (
             <Text className={`text-sm ${getTextColor()} ml-8 mb-3 opacity-90`} numberOfLines={1}>
               {event.location_address}
@@ -165,63 +137,33 @@ const EventItem: React.FC<EventItemProps> = ({
           )}
         </View>
 
-        {/* Team Information for Match/Tournament */}
         {showTeamInfo && (event.home_team || event.away_team) && (
           <View className="bg-white rounded-xl p-4 mb-3">
             <View className="flex-row items-center">
-              {/* Home Team */}
               <View className="flex-1 flex-row items-center">
                 {event.home_team?.logo_url ? (
-                  <Image 
-                    source={{ uri: event.home_team.logo_url }} 
-                    className="w-12 h-12 rounded-full bg-[#F2F2F7]"
-                  />
+                  <Image source={{ uri: event.home_team.logo_url }} className="w-12 h-12 rounded-full bg-gray-100" />
                 ) : (
-                  <View className="w-12 h-12 rounded-full bg-[#E5E5EA] items-center justify-center">
-                    <Text className="text-base font-bold text-[#636366]">
-                      {event.home_team?.name?.charAt(0) || 'H'}
-                    </Text>
+                  <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center">
+                    <Text className="text-base font-bold text-gray-500">{event.home_team?.name?.charAt(0) || 'H'}</Text>
                   </View>
                 )}
                 <View className="ml-3 flex-1">
-                  <Text className="text-sm font-bold text-[#1D1D1F]" numberOfLines={1}>
-                    {event.home_team?.name || 'Home Team'}
-                  </Text>
-                  {event.home_team_score !== null && (
-                    <Text className="text-2xl font-bold text-[#1D1D1F] mt-1">
-                      {event.home_team_score}
-                    </Text>
-                  )}
+                  <Text className="text-sm font-bold text-gray-800" numberOfLines={1}>{event.home_team?.name || 'Home Team'}</Text>
+                  {event.home_team_score !== null && <Text className="text-2xl font-bold text-gray-800 mt-1">{event.home_team_score}</Text>}
                 </View>
               </View>
-              
-              {/* VS Divider */}
-              <View className="px-3">
-                <Text className="text-sm font-bold text-[#636366]">VS</Text>
-              </View>
-              
-              {/* Away Team */}
+              <View className="px-3"><Text className="text-sm font-bold text-gray-500">VS</Text></View>
               <View className="flex-1 flex-row items-center justify-end">
                 <View className="mr-3 flex-1 items-end">
-                  <Text className="text-sm font-bold text-[#1D1D1F] text-right" numberOfLines={1}>
-                    {event.away_team?.name || 'Away Team'}
-                  </Text>
-                  {event.away_team_score !== null && (
-                    <Text className="text-2xl font-bold text-[#1D1D1F] mt-1">
-                      {event.away_team_score}
-                    </Text>
-                  )}
+                  <Text className="text-sm font-bold text-gray-800 text-right" numberOfLines={1}>{event.away_team?.name || 'Away Team'}</Text>
+                  {event.away_team_score !== null && <Text className="text-2xl font-bold text-gray-800 mt-1">{event.away_team_score}</Text>}
                 </View>
                 {event.away_team?.logo_url ? (
-                  <Image 
-                    source={{ uri: event.away_team.logo_url }} 
-                    className="w-12 h-12 rounded-full bg-[#F2F2F7]"
-                  />
+                  <Image source={{ uri: event.away_team.logo_url }} className="w-12 h-12 rounded-full bg-gray-100" />
                 ) : (
-                  <View className="w-12 h-12 rounded-full bg-[#E5E5EA] items-center justify-center">
-                    <Text className="text-base font-bold text-[#636366]">
-                      {event.away_team?.name?.charAt(0) || 'A'}
-                    </Text>
+                  <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center">
+                    <Text className="text-base font-bold text-gray-500">{event.away_team?.name?.charAt(0) || 'A'}</Text>
                   </View>
                 )}
               </View>
@@ -229,36 +171,26 @@ const EventItem: React.FC<EventItemProps> = ({
           </View>
         )}
 
-        {/* Description */}
         {event.description && (
           <View className="bg-white/20 backdrop-blur-md rounded-xl p-4 mb-3">
-            <Text className={`text-sm leading-5 ${getTextColor()}`} numberOfLines={2}>
-              {event.description}
-            </Text>
+            <Text className={`text-sm leading-5 ${getTextColor()}`} numberOfLines={2}>{event.description}</Text>
           </View>
         )}
         
-        {/* Meta Information */}
         <View className="mt-2">
           <View className="flex-row items-center">
             <Clock size={12} color="#FFFFFF" strokeWidth={2.5} />
-            <Text className={`text-xs ${getTextColor()} ml-2 opacity-80`}>
-              Created {createdAt}
-            </Text>
+            <Text className={`text-xs ${getTextColor()} ml-2 opacity-80`}>Created {createdAt}</Text>
           </View>
-          
-          {event.created_at !== event.updated_at && (
+          {event.created_at !== event.updated_at && updatedAt !== 'N/A' && (
             <View className="flex-row items-center mt-1">
               <Repeat size={12} color="#FFFFFF" strokeWidth={2.5} />
-              <Text className={`text-xs ${getTextColor()} ml-2 opacity-80`}>
-                Updated {updatedAt}
-              </Text>
+              <Text className={`text-xs ${getTextColor()} ml-2 opacity-80`}>Updated {updatedAt}</Text>
             </View>
           )}
         </View>
       </View>
 
-      {/* Action Menu Modal */}
       <Modal
         isVisible={isMenuVisible}
         animationIn="slideInUp"
@@ -268,45 +200,43 @@ const EventItem: React.FC<EventItemProps> = ({
         onSwipeComplete={() => setMenuVisible(false)}
         swipeDirection={['down']}
         style={{ justifyContent: 'flex-end', margin: 0 }}
+        useNativeDriverForBackdrop
       >
-        <View className={`
-          bg-white rounded-t-2xl
-          ${Platform.OS === 'ios' ? 'pb-8' : 'pb-4'}
-        `}>
-          <View className="w-12 h-1.5 bg-[#E5E5EA] rounded-full mx-auto mt-3 mb-5" />
+        <View className={`bg-white rounded-t-2xl ${Platform.OS === 'ios' ? 'pb-8' : 'pb-4'}`}>
+          <View className="w-12 h-1.5 bg-gray-300 rounded-full self-center mt-3 mb-5" />
           
-          {showRegistrationsButton && onViewRegistrations && (
+          {canViewRegistrations && (
             <TouchableOpacity
-              className="py-4 border-b border-[#F5F5F7] items-center"
-              onPress={() => handleMenuItemPress(() => onViewRegistrations(event.id))}
+              className="py-4 border-b border-gray-100 items-center"
+              onPress={() => executeMenuAction(navigateToEventDetails)}
             >
-              <Text className="text-base font-medium text-[#007AFF]">View Registrations</Text>
+              <Text className="text-base font-medium text-blue-500">View Details & Registrations</Text>
             </TouchableOpacity>
           )}
           
           {isCreator && onUpdate && (
             <TouchableOpacity
-              className="py-4 border-b border-[#F5F5F7] items-center"
-              onPress={() => handleMenuItemPress(() => onUpdate(event))}
+              className="py-4 border-b border-gray-100 items-center"
+              onPress={() => executeMenuAction(() => onUpdate(event))}
             >
-              <Text className="text-base font-medium text-[#007AFF]">Edit</Text>
+              <Text className="text-base font-medium text-blue-500">Edit Event</Text>
             </TouchableOpacity>
           )}
           
           {isCreator && onDelete && (
             <TouchableOpacity
-              className="py-4 border-b border-[#F5F5F7] items-center"
-              onPress={() => handleMenuItemPress(() => onDelete(event.id))}
+              className="py-4 border-b border-gray-100 items-center"
+              onPress={() => executeMenuAction(() => onDelete(event.id))}
             >
-              <Text className="text-base font-medium text-[#FF3B30]">Delete</Text>
+              <Text className="text-base font-medium text-red-500">Delete Event</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            className="mt-4 mx-4 py-4 items-center bg-[#F5F5F7] rounded-xl"
-            onPress={() => handleMenuItemPress()}
+            className="mt-4 mx-4 py-4 items-center bg-gray-100 rounded-xl active:bg-gray-200"
+            onPress={() => executeMenuAction()}
           >
-            <Text className="text-base font-bold text-[#007AFF]">Cancel</Text>
+            <Text className="text-base font-bold text-blue-500">Cancel</Text>
           </TouchableOpacity>
         </View>
       </Modal>

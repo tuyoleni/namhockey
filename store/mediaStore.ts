@@ -4,7 +4,7 @@ import type { Tables, TablesInsert } from 'types/database.types';
 
 type PostAuthorProfile = Pick<Tables<'profiles'>, 'id' | 'display_name' | 'profile_picture'> | null;
 
-type MediaPostWithAuthor = Tables<'media_posts'> & {
+export type MediaPostWithAuthor = Tables<'media_posts'> & {
   profiles: PostAuthorProfile;
 };
 type NewMediaPostPayload = TablesInsert<'media_posts'>;

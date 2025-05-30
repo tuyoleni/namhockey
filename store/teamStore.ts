@@ -1,24 +1,27 @@
 import { create } from 'zustand';
 import { supabase } from '@utils/superbase';
-import { Database, Tables, TablesInsert, TablesUpdate } from 'types/database.types';
+import { Tables, TablesInsert, TablesUpdate } from 'types/database.types';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export type TeamRow = Tables<'teams'>;
-export type TeamMemberRow = Tables<'team_members'> & { profiles: Tables<'profiles'> }; // Assuming you want profile data
+export type TeamMemberRow = Tables<'team_members'> & { profiles: Tables<'profiles'> | null };
+export type TeamJoinRequestRow = Tables<'team_join_requests'> & { profiles?: Tables<'profiles'> | null };
 
 interface TeamState {
     teams: TeamRow[];
+    userTeams: TeamRow[];
     loadingTeams: boolean;
     error: string | null;
     teamDetails: TeamRow | null;
     teamMembers: TeamMemberRow[];
     loadingTeamDetails: boolean;
-    joinRequests: Tables<'team_join_requests'>[]; // Add state for join requests
+    joinRequests: TeamJoinRequestRow[];
     loadingJoinRequests: boolean;
 }
 
 interface TeamActions {
     fetchTeams: () => Promise<void>;
+    fetchUserTeams: (userId: string) => Promise<TeamRow[]>;
     addTeam: (teamData: TablesInsert<'teams'>, creatorUserId: string) => Promise<TeamRow | null>;
     updateTeam: (teamId: string, teamData: TablesUpdate<'teams'>) => Promise<TeamRow | null>;
     deleteTeam: (teamId: string) => Promise<void>;
@@ -27,8 +30,7 @@ interface TeamActions {
     addTeamMember: (teamId: string, userId: string, role: string) => Promise<TeamMemberRow | null>;
     leaveTeam: (teamId: string, userId: string) => Promise<void>;
     subscribeToTeamMembers: (teamId: string) => () => void;
-
-    requestToJoinTeam: (teamId: string, userId: string) => Promise<void>;  // New action
+    requestToJoinTeam: (teamId: string, userId: string) => Promise<void>;
     fetchJoinRequests: (teamId: string) => Promise<void>;
     approveJoinRequest: (requestId: string) => Promise<void>;
     rejectJoinRequest: (requestId: string) => Promise<void>;
@@ -39,6 +41,7 @@ type TeamStore = TeamState & TeamActions;
 
 export const useTeamStore = create<TeamStore>((set, get) => ({
     teams: [],
+    userTeams: [],
     loadingTeams: false,
     error: null,
     teamDetails: null,
@@ -56,7 +59,6 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 .order('name', { ascending: true });
 
             if (error) throw error;
-
             set({ teams: data || [], loadingTeams: false });
         } catch (e: any) {
             set({ error: e.message || 'Failed to fetch teams', loadingTeams: false, teams: [] });
@@ -64,7 +66,42 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         }
     },
 
+    fetchUserTeams: async (userId: string) => {
+        set({ loadingTeams: true, error: null });
+        try {
+            const { data: memberTeamsData, error: memberTeamsError } = await supabase
+                .from('team_members')
+                .select('team_id')
+                .eq('user_id', userId);
+    
+            if (memberTeamsError) throw memberTeamsError;
+            
+            const teamIds = memberTeamsData?.map(mt => mt.team_id) || [];
+    
+            if (teamIds.length === 0) {
+                set({ userTeams: [], loadingTeams: false });
+                return [];
+            }
+    
+            const { data: teamsData, error: teamsError } = await supabase
+                .from('teams')
+                .select('*')
+                .in('id', teamIds)
+                .order('name', { ascending: true });
+    
+            if (teamsError) throw teamsError;
+            
+            set({ userTeams: teamsData || [], loadingTeams: false });
+            return teamsData || [];
+        } catch (e: any) {
+            set({ error: e.message || 'Failed to fetch user teams', loadingTeams: false, userTeams: [] });
+            console.error('Error fetching user teams:', e);
+            return [];
+        }
+    },    
+
     addTeam: async (teamData, creatorUserId) => {
+        set({ loadingTeams: true, error: null });
         try {
             const { data: teamDataResult, error: teamError } = await supabase
                 .from('teams')
@@ -73,31 +110,36 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 .single();
 
             if (teamError) throw teamError;
+            if (!teamDataResult) throw new Error("Team creation failed to return data.");
 
-            if (!teamDataResult) return null;
-
-            const { data: memberData, error: memberError } = await supabase
+            const { error: memberError } = await supabase
                 .from('team_members')
                 .insert({
                     team_id: teamDataResult.id,
                     user_id: creatorUserId,
                     role: 'admin',
-                })
-                .select('*')
-                .single();
+                    status: 'active', 
+                });
 
-            if (memberError) throw memberError;
-
+            if (memberError) {
+                console.error('Error adding admin member, attempting to rollback team creation or flag issue');
+                await supabase.from('teams').delete().eq('id', teamDataResult.id); 
+                throw memberError;
+            }
+            
+            set({ loadingTeams: false });
+            get().fetchTeams(); 
             return teamDataResult as TeamRow;
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating team:', error);
-            set({ error: 'Could not create team' });
+            set({ error: error.message || 'Could not create team', loadingTeams: false });
             return null;
         }
     },
 
     updateTeam: async (teamId, teamData) => {
+        set({ loadingTeams: true, error: null });
         try {
             const { data, error } = await supabase
                 .from('teams')
@@ -106,25 +148,30 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 .select('*')
                 .single();
 
+            set({ loadingTeams: false });
             if (error) throw error;
+            get().fetchTeams(); 
             return data as TeamRow | null;
         } catch (e: any) {
-            set({ error: e.message || 'Failed to update team' });
+            set({ error: e.message || 'Failed to update team', loadingTeams: false });
             console.error('Error updating team:', e);
             return null;
         }
     },
 
     deleteTeam: async (teamId) => {
+        set({ loadingTeams: true, error: null });
         try {
             const { error } = await supabase
                 .from('teams')
                 .delete()
                 .eq('id', teamId);
 
+            set({ loadingTeams: false });
             if (error) throw error;
+            get().fetchTeams();
         } catch (e: any) {
-            set({ error: e.message || 'Failed to delete team' });
+            set({ error: e.message || 'Failed to delete team', loadingTeams: false });
             console.error('Error deleting team:', e);
         }
     },
@@ -136,12 +183,9 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'teams' },
                 (payload: RealtimePostgresChangesPayload<TeamRow>) => {
-                    console.log('Team change received!', payload);
                     const { eventType, new: newData, old: oldData } = payload;
-
                     set((state) => {
                         let updatedTeams = [...state.teams];
-
                         if (eventType === 'INSERT') {
                             updatedTeams = [...updatedTeams, newData as TeamRow].sort((a, b) => a.name.localeCompare(b.name));
                         } else if (eventType === 'UPDATE') {
@@ -154,7 +198,6 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                                 updatedTeams = updatedTeams.filter((team) => team.id !== oldId);
                             }
                         }
-
                         return { teams: updatedTeams };
                     });
                 }
@@ -163,17 +206,13 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 if (err) {
                     console.error('Error subscribing to teams channel:', err);
                     set({ error: `Subscription error: ${err.message}` });
-                } else {
-                    console.log('Subscribed to teams channel with status:', status);
-                    if (status === 'SUBSCRIBED' && get().teams.length === 0 && !get().loadingTeams) {
-                        get().fetchTeams();
-                    }
+                } else if (status === 'SUBSCRIBED' && get().teams.length === 0 && !get().loadingTeams) {
+                    get().fetchTeams();
                 }
             });
 
         return () => {
             supabase.removeChannel(channel);
-            console.log('Unsubscribed from teams channel');
         };
     },
 
@@ -197,7 +236,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
             set({
                 teamDetails: teamData || null,
-                teamMembers: membersData || [],
+                teamMembers: (membersData as TeamMemberRow[]) || [],
                 loadingTeamDetails: false,
             });
 
@@ -208,23 +247,29 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     },
 
     addTeamMember: async (teamId, userId, role) => {
+        set({ loadingTeamDetails: true, error: null });
         try {
             const { data, error } = await supabase
                 .from('team_members')
-                .insert({ team_id: teamId, user_id: userId, role })
+                .insert({ team_id: teamId, user_id: userId, role, status: 'active' })
                 .select('*, profiles(*)')
                 .single();
-
+            
+            set({ loadingTeamDetails: false });
             if (error) throw error;
-            return data as TeamMemberRow;
+            if(data){
+                get().fetchTeamDetails(teamId);
+            }
+            return data as TeamMemberRow | null;
         } catch (error: any) {
             console.error('Error adding team member:', error);
-            set({ error: error.message || 'Could not add team member' });
+            set({ error: error.message || 'Could not add team member', loadingTeamDetails: false });
             return null;
         }
     },
 
     leaveTeam: async (teamId, userId) => {
+        set({ loadingTeamDetails: true, error: null });
         try {
             const { error } = await supabase
                 .from('team_members')
@@ -232,53 +277,48 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 .eq('team_id', teamId)
                 .eq('user_id', userId);
 
+            set({ loadingTeamDetails: false });
             if (error) throw error;
+            get().fetchTeamDetails(teamId);
         } catch (error: any) {
             console.error('Error leaving team:', error);
-            set({ error: error.message || 'Could not leave team' });
+            set({ error: error.message || 'Could not leave team', loadingTeamDetails: false });
         }
     },
 
     subscribeToTeamMembers: (teamId: string) => {
         const channel = supabase
-            .channel(`team_members:${teamId}`)
-            .on(
+            .channel(`team-members-realtime-${teamId}`)
+            .on<Tables<'team_members'>>( 
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'team_members' },
-                (payload) => {
-                    console.log('Team member change:', payload);
-                    const { eventType, new: newData, old: oldData } = payload;
-                    set((state) => {
-                        let updatedTeamMembers = [...state.teamMembers];
-                        if (eventType === 'INSERT') {
-                            updatedTeamMembers = [...updatedTeamMembers, newData as TeamMemberRow];
-                        } else if (eventType === 'UPDATE') {
-                            updatedTeamMembers = updatedTeamMembers.map(member =>
-                                member.id === (newData as TeamMemberRow).id ? (newData as TeamMemberRow) : member
-                            );
-                        } else if (eventType === 'DELETE') {
-                             const oldId = (oldData as Partial<TeamMemberRow>)?.id;
-                            if (oldId) {
-                                updatedTeamMembers = updatedTeamMembers.filter((member) => member.id !== oldId);
-                            }
-                        }
-                        return { teamMembers: updatedTeamMembers };
-                    });
+                { event: '*', schema: 'public', table: 'team_members', filter: `team_id=eq.${teamId}` },
+                async (payload) => {
+                    get().fetchTeamDetails(teamId);
                 }
             )
-            .subscribe();
-
-        return () => supabase.removeChannel(channel);
+            .subscribe((status, err) => {
+                if (err) {
+                    console.error(`Error subscribing to team_members ${teamId}:`, err);
+                } else if (status === 'SUBSCRIBED') {
+                    get().fetchTeamDetails(teamId);
+                }
+            });
+        return () => {
+            supabase.removeChannel(channel);
+        };
     },
+    
     requestToJoinTeam: async (teamId: string, userId: string) => {
+        set({ loadingJoinRequests: true, error: null });
         try {
             const { error } = await supabase
                 .from('team_join_requests')
-                .insert({ teamId, userId });
+                .insert({ team_id: teamId, user_id: userId, status: 'pending' });
+            set({ loadingJoinRequests: false });
             if (error) throw error;
         } catch (error: any) {
             console.error('Error requesting to join team:', error);
-            set({ error: error.message || 'Could not request to join team' });
+            set({ error: error.message || 'Could not request to join team', loadingJoinRequests: false });
         }
     },
 
@@ -287,10 +327,11 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         try {
             const { data, error } = await supabase
                 .from('team_join_requests')
-                .select('*, profiles(*)')  // Include user profile data
-                .eq('team_id', teamId);
+                .select('*, profiles(id, display_name, profile_picture)')
+                .eq('team_id', teamId)
+                .eq('status', 'pending');
             if (error) throw error;
-            set({ joinRequests: data || [], loadingJoinRequests: false });
+            set({ joinRequests: (data as TeamJoinRequestRow[]) || [], loadingJoinRequests: false });
         } catch (error: any) {
             console.error('Error fetching join requests:', error);
             set({ error: error.message || 'Could not fetch join requests', loadingJoinRequests: false });
@@ -298,8 +339,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     },
 
     approveJoinRequest: async (requestId: string) => {
+        set({ loadingJoinRequests: true, error: null });
         try {
-            // First, get the join request
             const { data: requestData, error: requestError } = await supabase
                 .from('team_join_requests')
                 .select('team_id, user_id')
@@ -307,67 +348,72 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 .single();
 
             if (requestError) throw requestError;
-            if (!requestData) {
-                throw new Error('Join request not found');
-            }
+            if (!requestData) throw new Error('Join request not found');
 
-            // Transaction to ensure both operations succeed or fail together
-            const { error: transactionError } = await supabase.rpc('approve_join_request', {
+            const { error: rpcError } = await supabase.rpc('approve_join_request_and_add_member', {
                 p_request_id: requestId,
                 p_team_id: requestData.team_id,
                 p_user_id: requestData.user_id,
-                p_role: 'member' // Or any default role
+                p_role: 'member'
             });
-
-            if (transactionError) throw transactionError;
+            
+            set({ loadingJoinRequests: false });
+            if (rpcError) throw rpcError;
+            get().fetchJoinRequests(requestData.team_id); 
+            get().fetchTeamDetails(requestData.team_id); 
 
         } catch (error: any) {
             console.error('Error approving join request:', error);
-            set({ error: error.message || 'Could not approve join request' });
+            set({ error: error.message || 'Could not approve join request', loadingJoinRequests: false });
         }
     },
 
     rejectJoinRequest: async (requestId: string) => {
+        set({ loadingJoinRequests: true, error: null });
         try {
+            const { data: requestDetails, error: fetchError } = await supabase
+                .from('team_join_requests')
+                .select('team_id')
+                .eq('id', requestId)
+                .single();
+            
+            if (fetchError) throw fetchError;
+            if (!requestDetails) throw new Error("Request not found for rejection.");
+
             const { error } = await supabase
                 .from('team_join_requests')
                 .delete()
                 .eq('id', requestId);
+
+            set({ loadingJoinRequests: false });
             if (error) throw error;
+            get().fetchJoinRequests(requestDetails.team_id);
+
         } catch (error: any) {
             console.error('Error rejecting join request:', error);
-            set({ error: error.message || 'Could not reject join request' });
+            set({ error: error.message || 'Could not reject join request', loadingJoinRequests: false });
         }
     },
+
     subscribeToJoinRequests: (teamId: string) => {
         const channel = supabase
-            .channel(`team_join_requests:${teamId}`)
-            .on(
+            .channel(`team-join-requests-realtime-${teamId}`)
+            .on<Tables<'team_join_requests'>>(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'team_join_requests' },
+                { event: '*', schema: 'public', table: 'team_join_requests', filter: `team_id=eq.${teamId}` },
                 (payload) => {
-                    console.log('Join request change:', payload);
-                    const { eventType, new: newData, old: oldData } = payload;
-                    set((state) => {
-                        let updatedRequests = [...state.joinRequests];
-                        if (eventType === 'INSERT') {
-                            updatedRequests = [...updatedRequests, newData as Tables<'team_join_requests'>];
-                        } else if (eventType === 'UPDATE') {
-                            updatedRequests = updatedRequests.map(req =>
-                                req.id === (newData as Tables<'team_join_requests'>).id ? (newData as Tables<'team_join_requests'>) : req
-                            );
-                        } else if (eventType === 'DELETE') {
-                            const oldId = (oldData as Partial<Tables<'team_join_requests'>>)?.id;
-                            if (oldId) {
-                                updatedRequests = updatedRequests.filter((req) => req.id !== oldId);
-                            }
-                        }
-                        return { joinRequests: updatedRequests };
-                    });
+                   get().fetchJoinRequests(teamId);
                 }
             )
-            .subscribe();
-
-        return () => supabase.removeChannel(channel);
+            .subscribe((status, err) => {
+                if(err) {
+                    console.error(`Error subscribing to team_join_requests ${teamId}`, err);
+                } else if (status === 'SUBSCRIBED') {
+                    get().fetchJoinRequests(teamId);
+                }
+            });
+        return () => {
+            supabase.removeChannel(channel);
+        };
     },
 }));

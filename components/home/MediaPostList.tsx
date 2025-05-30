@@ -1,70 +1,41 @@
 import React from 'react';
-import { View, Text, Image } from 'react-native';
-import type { Tables } from 'types/database.types';
+import { View, Text, FlatList } from 'react-native';
+import { useMediaStore, MediaPostWithAuthor } from 'store/mediaStore'; // Import MediaPostWithAuthor
+import MediaPostItem from './MediaPostItem';
+import { InfoMessage } from '@components/ui/InfoMessage';
 
-type PostAuthorProfile = Pick<Tables<'profiles'>, 'id' | 'display_name' | 'profile_picture'> | null;
+const MediaPostList: React.FC = () => {
+  const { 
+    allMediaPosts, 
+    isLoadingMedia, 
+    operationError: mediaFetchError 
+  } = useMediaStore();
 
-interface MediaPostFromStore extends Tables<'media_posts'> {
-  profiles: PostAuthorProfile;
-}
+  if (isLoadingMedia && (!allMediaPosts || allMediaPosts.length === 0)) {
+    return <InfoMessage message="Loading media..." type="loading" />;
+  }
 
-interface MediaPostItemProps {
-  post: MediaPostFromStore; 
-}
+  if (mediaFetchError) {
+    return <InfoMessage message="Error loading media" type="error" details={mediaFetchError} />;
+  }
 
-const MediaPostItem: React.FC<MediaPostItemProps> = ({ post }) => {
-  const authorProfile = post.profiles;
-  const authorName = authorProfile?.display_name || ''; 
-  const profilePictureUrl = authorProfile?.profile_picture;
+  if (!allMediaPosts || allMediaPosts.length === 0) {
+    return <InfoMessage message="No media posts found" type="no-data" />;
+  }
 
   return (
-    <View className="bg-white rounded-lg mb-4 border border-gray-100 overflow-hidden">
-      {post.type === 'image' && post.url && (
-        <Image 
-          source={{ uri: post.url }} 
-          className="w-full aspect-[16/9] bg-gray-200" 
-          resizeMode="cover" 
-        />
-      )}
-      {post.type === 'video' && post.url && (
-         <View className="w-full aspect-[16/9] bg-black items-center justify-center">
-            <Text className="text-white">Video placeholder</Text>
-         </View>
-      )}
-      
-      <View className="p-4">
-        {authorProfile && (
-          <View className="flex-row items-center mb-2">
-            {profilePictureUrl ? (
-              <Image 
-                source={{ uri: profilePictureUrl }} 
-                className="w-10 h-10 rounded-full mr-3 bg-gray-200" 
-              />
-            ) : (
-              <View className="w-10 h-10 rounded-full mr-3 bg-gray-300 items-center justify-center">
-                <Text className="text-white font-bold text-sm">
-                  {authorName ? authorName.charAt(0).toUpperCase() : 'U'}
-                </Text>
-              </View>
-            )}
-            {authorName ? (
-              <Text className="font-semibold text-gray-800 text-base">{authorName}</Text>
-            ) : (
-              <Text className="font-semibold text-gray-500 text-base italic">User</Text> 
-            )}
-          </View>
-        )}
-
-        {post.caption && (
-          <Text className="text-gray-700 mb-3 text-base leading-relaxed">{post.caption}</Text>
-        )}
-        
-        <Text className="text-xs text-gray-500">
-          {new Date(post.created_at).toLocaleDateString()}
-        </Text>
-      </View>
+    <View className="flex-1">
+      <FlatList
+        data={allMediaPosts}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }: { item: MediaPostWithAuthor }) => <MediaPostItem post={item} />}
+        scrollEnabled={false}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 80 }}
+        ItemSeparatorComponent={() => <View className="h-4" />}
+      />
     </View>
   );
 };
 
-export default MediaPostItem;
+export default MediaPostList;

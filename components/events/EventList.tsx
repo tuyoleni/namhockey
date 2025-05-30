@@ -35,7 +35,7 @@ const EventList: React.FC<EventListProps> = ({
     return (
       <View style={styles.centered}>
         <ActivityIndicator  />
-        <Text>Loading events...</Text>
+        <Text>Loading...</Text>
       </View>
     );
   }
@@ -66,7 +66,6 @@ const EventList: React.FC<EventListProps> = ({
           onPress={onEventPress}
           onDelete={onDeleteEvent}
           onUpdate={onUpdateEvent}
-          onViewRegistrations={onViewRegistrations}
         />
       )}
       contentContainerStyle={styles.listContent}

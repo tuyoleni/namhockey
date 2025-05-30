@@ -1,15 +1,9 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
-import type { Tables } from 'types/database.types';
-
-type PostAuthorProfile = Pick<Tables<'profiles'>, 'id' | 'display_name' | 'profile_picture'> | null;
-
-interface MediaPostFromStore extends Tables<'media_posts'> {
-  profiles: PostAuthorProfile;
-}
+import type { MediaPostWithAuthor } from 'store/mediaStore'; // Import the exported type
 
 interface MediaPostItemProps {
-  post: MediaPostFromStore; 
+  post: MediaPostWithAuthor; 
 }
 
 const MediaPostItem: React.FC<MediaPostItemProps> = ({ post }) => {

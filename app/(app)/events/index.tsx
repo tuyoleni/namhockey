@@ -1,10 +1,9 @@
 import AddEventForm from '@components/events/AddEventForm';
 import EventList from '@components/events/EventList';
-import RegisterTeamForm from '@components/events/RegisterTeamForm';
 import RegistrationList from '@components/events/RegistrationList';
 import UpdateEventForm from '@components/events/UpdateEventForm';
 import { PlusCircle } from 'lucide-react-native';
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,13 +16,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EventWithTeams, useEventStore } from 'store/eventStore';
 import { useUserStore } from 'store/userStore';
-import { useNavigation } from 'expo-router'; // Import useNavigation
-
-
-
+import { useNavigation } from 'expo-router';
 
 const EventScreen: React.FC = () => {
-  const navigation = useNavigation(); // Get navigation object
+  const navigation = useNavigation();
 
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isUpdateModalVisible, setUpdateModalVisible] = useState(false);
@@ -33,32 +29,30 @@ const EventScreen: React.FC = () => {
   const [isRegisterTeamModalVisible, setRegisterTeamModalVisible] = useState(false);
   const [selectedEventIdForRegistration, setSelectedEventIdForRegistration] = useState<string | null>(null);
 
-
-  const { deleteEvent, loadingEvents, error: eventError } = useEventStore();
+  const { deleteEvent, error: eventError } = useEventStore();
   const { authUser, fetchAuthUser, loading: loadingUser, error: userError } = useUserStore();
 
   useEffect(() => {
     fetchAuthUser();
   }, [fetchAuthUser]);
 
-  const handleAddPress = () => {
+  const handleAddPress = useCallback(() => {
     if (authUser) {
        setAddModalVisible(true);
     } else {
        Alert.alert('Authentication Required', 'Please log in to add events.');
     }
-  };
+  }, [authUser]);
 
-  // Effect to set header options
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity onPress={handleAddPress} style={{ marginRight: 15 }} disabled={!authUser}>
-          <PlusCircle size={30} color={authUser ? "#007AFF" : "#ccc"} />
+        <TouchableOpacity onPress={handleAddPress} className="mr-4" disabled={!authUser}>
+          <PlusCircle size={30} color={authUser ? "#007AFF" : "#D1D5DB"} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, authUser, handleAddPress]); // Add dependencies
+  }, [navigation, authUser, handleAddPress]);
 
   const handleAddSuccess = () => {
     setAddModalVisible(false);
@@ -115,12 +109,12 @@ const EventScreen: React.FC = () => {
    const handleRegisterTeamSuccess = () => {
      setRegisterTeamModalVisible(false);
      setSelectedEventIdForRegistration(null);
-   }
+   };
 
    if (loadingUser) {
        return (
            <View className="flex-1 justify-center items-center bg-gray-100">
-               <ActivityIndicator />
+               <ActivityIndicator size="large" color="#007AFF"/>
            </View>
        );
    }
@@ -135,15 +129,14 @@ const EventScreen: React.FC = () => {
 
     if (!authUser) {
         return (
-            <View className="flex-1 justify-center items-center bg-gray-100 p-5">
+            <SafeAreaView className="flex-1 justify-center items-center bg-gray-100 p-5">
                 <Text className="text-gray-700 text-base text-center">Please log in to view and manage events.</Text>
-            </View>
+            </SafeAreaView>
         );
     }
 
-
   return (
-        <View className="flex-1 bg-gray-100">
+        <SafeAreaView className="flex-1 bg-gray-100">
           <EventList
             onUpdateEvent={handleUpdatePress}
             onDeleteEvent={handleDeleteEvent}
@@ -151,11 +144,11 @@ const EventScreen: React.FC = () => {
           />
 
           <Modal
-            visible={isAddModalVisible} // Controlled by state
+            visible={isAddModalVisible}
             animationType="slide"
             onRequestClose={() => setAddModalVisible(false)}
           >
-             <View className="flex-1 pt-12 px-5 bg-white">
+             <SafeAreaView className="flex-1 pt-5 px-5 bg-white">
                  {authUser && ( 
                      <AddEventForm
                        onSuccess={handleAddSuccess}
@@ -163,20 +156,19 @@ const EventScreen: React.FC = () => {
                        onCancel={() => setAddModalVisible(false)}
                      />
                   )}
-             </View>
+             </SafeAreaView>
           </Modal>
-
 
           <Modal
             visible={isUpdateModalVisible}
             animationType="slide"
             onRequestClose={() => setUpdateModalVisible(false)}
           >
-             <View className="flex-1 pt-12 px-5 bg-white">
+             <SafeAreaView className="flex-1 pt-5 px-5 bg-white">
                 {selectedEventToUpdate && (
                   <UpdateEventForm event={selectedEventToUpdate} onSuccess={handleUpdateSuccess} onCancel={() => setUpdateModalVisible(false)} />
                 )}
-             </View>
+             </SafeAreaView>
           </Modal>
 
           <Modal
@@ -184,20 +176,30 @@ const EventScreen: React.FC = () => {
             animationType="slide"
             onRequestClose={() => setRegistrationsModalVisible(false)}
           >
-             <View className="flex-1 pt-12 px-5 bg-white">
-                <Text className="text-xl font-bold mb-5 text-center">Registrations</Text>
+             <SafeAreaView className="flex-1 pt-5 bg-white">
+                <View className="px-5">
+                    <Text className="text-xl font-bold mb-5 text-center">Registrations</Text>
+                </View>
                 {selectedEventIdForRegistrations && (
                   <>
                     <RegistrationList eventId={selectedEventIdForRegistrations} />
-                     <Button
-                        title="Register Team"
-                        onPress={() => handleRegisterTeamPress(selectedEventIdForRegistrations!)}
-                        disabled={!authUser}
-                     />
+                    <View className="p-5">
+                         <Button
+                            title="Register Another Team"
+                            onPress={() => {
+                                setRegistrationsModalVisible(false); 
+                                handleRegisterTeamPress(selectedEventIdForRegistrations!);
+                            }}
+                            disabled={!authUser}
+                            color="#007AFF"
+                         />
+                    </View>
                   </>
                 )}
-                <Button title="Close" onPress={() => setRegistrationsModalVisible(false)} />
-             </View>
+                <View className="p-5">
+                    <Button title="Close" onPress={() => setRegistrationsModalVisible(false)} color="#8E8E93"/>
+                </View>
+             </SafeAreaView>
           </Modal>
 
            <Modal
@@ -206,21 +208,15 @@ const EventScreen: React.FC = () => {
             transparent={true}
             onRequestClose={() => setRegisterTeamModalVisible(false)}
           >
-             <View className="flex-1 justify-center items-center bg-black/50">
-                <View className="bg-white rounded-lg p-5 w-11/12 max-h-4/5">
-                   {selectedEventIdForRegistration && authUser && (
-                      <RegisterTeamForm
-                         eventId={selectedEventIdForRegistration}
-                         onSuccess={handleRegisterTeamSuccess}
-                         onCancel={() => setRegisterTeamModalVisible(false)}
-                      />
-                   )}
+             <View className="flex-1 justify-center items-center bg-black/50 p-5">
+                <View className="bg-white rounded-lg p-5 w-full max-w-md">
+                    <Text className="text-lg font-bold mb-5 text-center">Register Team</Text>
+                    <Button title="Close" onPress={() => setRegisterTeamModalVisible(false)} color="#8E8E93"/>
                 </View>
              </View>
           </Modal>
-        </View>
+        </SafeAreaView>
   );
 };
-
 
 export default EventScreen;

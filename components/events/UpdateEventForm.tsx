@@ -1,244 +1,150 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { TablesUpdate } from 'types/database.types'; // Adjust import path
-import DateTimePickerModal from "react-native-modal-datetime-picker"; // You'll need to install this
-import { format } from 'date-fns'; // You'll need to install this
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { EventWithTeams, useEventStore } from 'store/eventStore';
+import { TablesUpdate } from 'types/database.types';
 
 interface UpdateEventFormProps {
-  event: EventWithTeams; // The event to update
-  onSuccess?: () => void; // Optional callback on successful update
-  onCancel?: () => void; // Optional callback on cancel
+  event: EventWithTeams;
+  onSuccess: () => void;
+  onCancel: () => void;
 }
 
 const UpdateEventForm: React.FC<UpdateEventFormProps> = ({ event, onSuccess, onCancel }) => {
+  const { updateEvent, loadingEvents: isLoading } = useEventStore();
   const [title, setTitle] = useState(event.title);
   const [description, setDescription] = useState(event.description || '');
   const [eventType, setEventType] = useState(event.event_type);
-  const [startTime, setStartTime] = useState<Date | null>(event.start_time ? new Date(event.start_time) : null);
-  const [endTime, setEndTime] = useState<Date | null>(event.end_time ? new Date(event.end_time) : null);
   const [locationName, setLocationName] = useState(event.location_name || '');
   const [locationAddress, setLocationAddress] = useState(event.location_address || '');
-  const [homeTeamScore, setHomeTeamScore] = useState<string>(event.home_team_score !== null ? String(event.home_team_score) : '');
-  const [awayTeamScore, setAwayTeamScore] = useState<string>(event.away_team_score !== null ? String(event.away_team_score) : '');
-  const [status, setStatus] = useState(event.status); // Consider making this a dropdown/picker
-
-  const [isStartTimePickerVisible, setStartTimePickerVisible] = useState(false);
-  const [isEndTimePickerVisible, setEndTimePickerVisible] = useState(false);
-
-  const { updateEvent, loadingEvents, error } = useEventStore(); // Use loadingEvents from store
-
-  // Effect to update form state if the event prop changes (e.g., when selecting a different event)
-  useEffect(() => {
-    setTitle(event.title);
-    setDescription(event.description || '');
-    setEventType(event.event_type);
-    setStartTime(event.start_time ? new Date(event.start_time) : null);
-    setEndTime(event.end_time ? new Date(event.end_time) : null);
-    setLocationName(event.location_name || '');
-    setLocationAddress(event.location_address || '');
-    setHomeTeamScore(event.home_team_score !== null ? String(event.home_team_score) : '');
-    setAwayTeamScore(event.away_team_score !== null ? String(event.away_team_score) : '');
-    setStatus(event.status);
-  }, [event]);
+  const [startTime, setStartTime] = useState(event.start_time ? new Date(event.start_time).toISOString().substring(0, 16) : '');
+  const [endTime, setEndTime] = useState(event.end_time ? new Date(event.end_time).toISOString().substring(0, 16) : '');
 
 
-  const handleUpdateEvent = async () => {
-    if (!title || !eventType || !startTime || !endTime || !locationName) {
-      Alert.alert('Missing Information', 'Please fill in all required fields (Title, Event Type, Start Time, End Time, Location Name)');
+  const handleSaveChanges = async () => {
+    if (!title.trim()) {
+      Alert.alert('Validation Error', 'Event title cannot be empty.');
+      return;
+    }
+    if (!startTime) {
+      Alert.alert('Validation Error', 'Start time is required.');
       return;
     }
 
-    const updatedEventData: TablesUpdate<'events'> = {
-      title,
-      description: description || null,
+    const updates: TablesUpdate<'events'> = {
+      title: title.trim(),
+      description: description.trim() || null,
       event_type: eventType,
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
-      location_name: locationName,
-      location_address: locationAddress || null,
-      home_team_score: homeTeamScore === '' ? null : parseInt(homeTeamScore, 10),
-      away_team_score: awayTeamScore === '' ? null : parseInt(awayTeamScore, 10),
-      status: status,
-      // home_team_id and away_team_id updates would go here if you implement team selection
+      location_name: locationName.trim() || null,
+      location_address: locationAddress.trim() || null,
+      start_time: new Date(startTime).toISOString(),
+      end_time: endTime ? new Date(endTime).toISOString() : null,
     };
 
-    const updatedEvent = await updateEvent(event.id, updatedEventData);
-
+    const updatedEvent = await updateEvent(event.id, updates);
     if (updatedEvent) {
       Alert.alert('Success', 'Event updated successfully!');
-      onSuccess?.(); // Call success callback
+      onSuccess();
     } else {
-      // Error is handled by the store and console.error
-      Alert.alert('Error', error || 'Failed to update event.');
+      Alert.alert('Error', 'Failed to update event. Please try again.');
     }
   };
 
-  const showStartTimePicker = () => setStartTimePickerVisible(true);
-  const hideStartTimePicker = () => setStartTimePickerVisible(false);
-  const handleConfirmStartTime = (date: Date) => {
-    setStartTime(date);
-    hideStartTimePicker();
-  };
-
-  const showEndTimePicker = () => setEndTimePickerVisible(true);
-  const hideEndTimePicker = () => setEndTimePickerVisible(false);
-  const handleConfirmEndTime = (date: Date) => {
-    setEndTime(date);
-    hideEndTimePicker();
-  };
-
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.heading}>Update Event</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Title"
-        value={title ?? ''} // Use nullish coalescing
-        onChangeText={setTitle}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Description (Optional)"
-        value={description ?? ''} // Use nullish coalescing
-        onChangeText={setDescription}
-        multiline
-      />
-       <TextInput
-        style={styles.input}
-        placeholder="Event Type"
-        value={eventType ?? ''} // Use nullish coalescing
-        onChangeText={setEventType}
-      />
-
-       {/* Date/Time Pickers */}
-      <View style={styles.dateTimeContainer}>
-        <TouchableOpacity onPress={showStartTimePicker} style={styles.dateTimeButton}>
-          <Text>{startTime ? format(startTime, 'yyyy-MM-dd HH:mm') : 'Select Start Time'}</Text>
-        </TouchableOpacity>
-        <DateTimePickerModal
-          isVisible={isStartTimePickerVisible}
-          mode="datetime"
-          onConfirm={handleConfirmStartTime}
-          onCancel={hideStartTimePicker}
-        />
-         <TouchableOpacity onPress={showEndTimePicker} style={styles.dateTimeButton}>
-          <Text>{endTime ? format(endTime, 'yyyy-MM-dd HH:mm') : 'Select End Time'}</Text>
-        </TouchableOpacity>
-        <DateTimePickerModal
-          isVisible={isEndTimePickerVisible}
-          mode="datetime"
-          onConfirm={handleConfirmEndTime}
-          onCancel={hideEndTimePicker}
+    <ScrollView className="flex-1 px-4 py-6 bg-white" keyboardShouldPersistTaps="handled">
+      <Text className="text-2xl font-bold text-gray-800 mb-6">Edit Event</Text>
+      
+      <View className="mb-4">
+        <Text className="text-sm font-medium text-gray-600 mb-1">Title</Text>
+        <TextInput
+          className="border border-gray-300 p-3 rounded-md text-base text-gray-800"
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Event Title"
         />
       </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Location Name"
-        value={locationName ?? ''} // Use nullish coalescing
-        onChangeText={setLocationName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Location Address (Optional)"
-        value={locationAddress ?? ''} // Use nullish coalescing
-        onChangeText={setLocationAddress}
-      />
-
-      {/* Score Inputs */}
-      <View style={styles.scoreContainer}>
-         <TextInput
-            style={[styles.input, styles.scoreInput]}
-            placeholder="Home Score"
-            value={homeTeamScore ?? ''} // Use nullish coalescing
-            onChangeText={setHomeTeamScore}
-            keyboardType="numeric"
-         />
-         <TextInput
-            style={[styles.input, styles.scoreInput]}
-            placeholder="Away Score"
-            value={awayTeamScore ?? ''} // Use nullish coalescing
-            onChangeText={setAwayTeamScore}
-            keyboardType="numeric"
-         />
+      <View className="mb-4">
+        <Text className="text-sm font-medium text-gray-600 mb-1">Description</Text>
+        <TextInput
+          className="border border-gray-300 p-3 rounded-md text-base text-gray-800 min-h-[100px]"
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Event Description"
+          multiline
+          textAlignVertical="top"
+        />
       </View>
 
-
-      {/* Status Picker would go here */}
-       <TextInput
-        style={styles.input}
-        placeholder="Status (e.g., scheduled, completed)"
-        value={status ?? ''} // Use nullish coalescing
-        onChangeText={setStatus}
-      />
-
-
-      {/* Team Pickers would go here */}
-
-      <View style={styles.buttonContainer}>
-        <Button title="Update Event" onPress={handleUpdateEvent} disabled={loadingEvents} />
-        {onCancel && <Button title="Cancel" onPress={onCancel} color="red" />}
+      <View className="mb-4">
+        <Text className="text-sm font-medium text-gray-600 mb-1">Event Type</Text>
+        <TextInput
+          className="border border-gray-300 p-3 rounded-md text-base text-gray-800"
+          value={eventType}
+          onChangeText={setEventType}
+          placeholder="e.g., Match, Tournament, Meeting"
+        />
+      </View>
+      
+      <View className="mb-4">
+        <Text className="text-sm font-medium text-gray-600 mb-1">Start Date & Time</Text>
+        <TextInput
+          className="border border-gray-300 p-3 rounded-md text-base text-gray-800"
+          value={startTime}
+          onChangeText={setStartTime}
+          placeholder="YYYY-MM-DDTHH:mm"
+          keyboardType="numbers-and-punctuation" // Basic, consider DateTimePicker
+        />
+      </View>
+      
+      <View className="mb-4">
+        <Text className="text-sm font-medium text-gray-600 mb-1">End Date & Time (Optional)</Text>
+        <TextInput
+          className="border border-gray-300 p-3 rounded-md text-base text-gray-800"
+          value={endTime}
+          onChangeText={setEndTime}
+          placeholder="YYYY-MM-DDTHH:mm"
+          keyboardType="numbers-and-punctuation" // Basic, consider DateTimePicker
+        />
       </View>
 
+      <View className="mb-4">
+        <Text className="text-sm font-medium text-gray-600 mb-1">Location Name</Text>
+        <TextInput
+          className="border border-gray-300 p-3 rounded-md text-base text-gray-800"
+          value={locationName}
+          onChangeText={setLocationName}
+          placeholder="e.g., Central Stadium"
+        />
+      </View>
+      
+      <View className="mb-6">
+        <Text className="text-sm font-medium text-gray-600 mb-1">Location Address</Text>
+        <TextInput
+          className="border border-gray-300 p-3 rounded-md text-base text-gray-800"
+          value={locationAddress}
+          onChangeText={setLocationAddress}
+          placeholder="Full address"
+        />
+      </View>
 
-      {loadingEvents && <ActivityIndicator/>}
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {isLoading && <ActivityIndicator size="large" color="#007AFF" className="my-3" />}
+
+      <TouchableOpacity
+        className="bg-sky-500 p-4 rounded-lg items-center mb-3 active:bg-sky-600"
+        onPress={handleSaveChanges}
+        disabled={isLoading}
+      >
+        <Text className="text-white text-base font-semibold">Save Changes</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        className="bg-gray-200 p-4 rounded-lg items-center active:bg-gray-300"
+        onPress={onCancel}
+        disabled={isLoading}
+      >
+        <Text className="text-gray-700 text-base font-semibold">Cancel</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-  },
-  heading: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
-    marginBottom: 15,
-    borderRadius: 5,
-  },
-   dateTimeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 15,
-  },
-  dateTimeButton: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
-    borderRadius: 5,
-    flex: 1,
-    marginHorizontal: 5,
-    alignItems: 'center',
-  },
-  scoreContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  scoreInput: {
-    flex: 1,
-    marginHorizontal: 5,
-    textAlign: 'center',
-  },
-  buttonContainer: {
-    marginTop: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  errorText: {
-    color: 'red',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-});
 
 export default UpdateEventForm;

@@ -117,7 +117,7 @@ const HomeScreen: React.FC = () => {
   }, [refreshAllScreenData]);
 
   if (loadingNews || loadingEvents || isLoadingMedia || loadingUser) {
-    return <InfoMessage message="Loading dashboard..." type="loading" />;
+    return <InfoMessage message="Loading..." type="loading" />;
   }
 
   const combinedError = [newsError, eventError, mediaError, userError].filter(Boolean).join('\n');

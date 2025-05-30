@@ -34,8 +34,7 @@ const CreateMediaPostScreen = () => {
         return false;
       }
     }
-    // Gallery permissions are usually requested when picker is launched,
-    // but good to have an explicit check if needed.
+
     permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permissionResult.status !== 'granted') {
       Alert.alert('Permission Required', 'Media library access is needed to select photos/videos.');
@@ -226,7 +225,7 @@ const CreateMediaPostScreen = () => {
                 <Text className="text-white text-lg font-semibold">Create Another Post</Text>
               </TouchableOpacity>
                <TouchableOpacity
-                onPress={() => router.replace('/(app)/home')} // Navigate to home or feed
+                onPress={() => router.replace('/(app)')} // Navigate to home or feed
                 className="mt-4 py-3 px-6"
               >
                 <Text className="text-sky-400 text-base">Go to Feed</Text>

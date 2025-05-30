@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Modal, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, Modal, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Alert, Image, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTeamStore } from '../../store/teamStore';
-import { useUserStore, SearchableUser } from '../../store/userStore'; // Assuming SearchableUser is exported
+import { useUserStore, SearchableUser } from '../../store/userStore'; // Import SearchableUser from userStore
 import { X, Search, UserPlus, CheckCircle, UserCircle2 } from 'lucide-react-native';
 
 interface AddMemberModalProps {
@@ -22,7 +22,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isVisible, onClose, tea
   useEffect(() => {
     if (!isVisible) {
       setSearchQuery('');
-      useUserStore.setState({ searchedUsers: [] }); // Clear previous search results from store on close
+      useUserStore.setState({ searchedUsers: [] }); 
     }
   }, [isVisible]);
 
@@ -40,7 +40,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isVisible, onClose, tea
     if (debouncedQuery.trim()) {
       searchUsers(debouncedQuery.trim());
     } else {
-      useUserStore.setState({ searchedUsers: [] }); // Clear results if query is empty
+      useUserStore.setState({ searchedUsers: [] });
     }
   }, [debouncedQuery, searchUsers]);
 
@@ -76,8 +76,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isVisible, onClose, tea
             </View>
           )}
           <View className="flex-1">
-            <Text className="text-base font-medium text-gray-800" numberOfLines={1}>{item.display_name}</Text>
-            {item.email && <Text className="text-sm text-gray-500" numberOfLines={1}>{item.email}</Text>}
+            <Text className="text-base font-medium text-gray-800" numberOfLines={1}>{item.display_name || 'User'}</Text>
+            {/* Removed item.email display as it's not in the refined SearchableUser type by default */}
           </View>
         </View>
         {isAlreadyMember ? (
@@ -113,7 +113,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isVisible, onClose, tea
             <View className="items-center my-6 p-4">
                  <Search size={32} className="text-gray-300 mb-3"/>
                  <Text className="text-center text-gray-500">
-                    Start typing to search for users by name or username.
+                    Start typing to search for users by display name.
                  </Text>
             </View>
         );
@@ -143,7 +143,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isVisible, onClose, tea
                 <Search size={20} className="text-gray-400" />
               </View>
               <TextInput
-                placeholder="Search by name or username..."
+                placeholder="Search by display name..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 className="flex-1 text-base h-11 text-gray-800 py-2"

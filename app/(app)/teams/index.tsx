@@ -1,128 +1,132 @@
-// src/screens/teams/index.tsx
-import CreateTeamModal from '@components/teams/CreateTeamModal';
-import TeamDetailsModal from '@components/teams/TeamDetailsModal';
-import TeamListItem from '@components/teams/TeamListItem';
-import { PlusIcon } from 'lucide-react-native';
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Alert, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, Stack } from 'expo-router';
 import { useTeamStore, TeamRow } from 'store/teamStore';
 import { useUserStore } from 'store/userStore';
+import TeamListItem from '@components/teams/TeamListItem';
+import { PlusIcon, Users } from 'lucide-react-native';
 
 export default function TeamsScreen() {
+  const router = useRouter();
   const {
     teams,
+    userTeams,
     fetchTeams,
+    fetchUserTeams,
     loadingTeams,
     error: teamError,
     subscribeToTeams,
   } = useTeamStore();
-  const { authUser, fetchAuthUser } = useUserStore(); // Assuming authUser has user.id
+  const { authUser, fetchAuthUser } = useUserStore();
 
-  const [isCreateModalVisible, setCreateModalVisible] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<TeamRow | null>(null);
-  const [isDetailsModalVisible, setDetailsModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const handleCreateTeamPress = () => {
+    if (authUser) {
+      router.push('/teams/create'); 
+    } else {
+      Alert.alert("Authentication Required", "You need to be logged in to create a team.");
+    }
+  };
 
   useEffect(() => {
     if (!authUser) {
       fetchAuthUser();
     }
     fetchTeams();
+    if (authUser?.id) {
+      fetchUserTeams(authUser.id);
+    }
     const unsubscribe = subscribeToTeams();
     return () => {
       unsubscribe();
     };
-  }, [fetchTeams, subscribeToTeams, fetchAuthUser, authUser]);
+  }, [fetchTeams, subscribeToTeams, fetchAuthUser, authUser, fetchUserTeams]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchTeams();
+    if (authUser?.id) {
+      await fetchUserTeams(authUser.id);
+    }
     setRefreshing(false);
-  }, [fetchTeams]);
+  }, [fetchTeams, authUser, fetchUserTeams]);
 
   const handleTeamSelect = (team: TeamRow) => {
-    setSelectedTeam(team);
-    setDetailsModalVisible(true);
+    router.push(`/teams/${team.id}`);
   };
+  
+  const userTeamIds = new Set(userTeams.map(t => t.id));
 
   if (loadingTeams && teams.length === 0 && !refreshing) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text className="mt-2 text-gray-600">Loading Teams...</Text>
-      </View>
-    );
-  }
-
-  if (teamError && teams.length === 0) {
-    return (
-      <View className="flex-1 justify-center items-center p-4 bg-gray-100">
-        <Text className="text-red-500 text-center">Error loading teams: {teamError}</Text>
-        <TouchableOpacity
-          onPress={() => fetchTeams()}
-          className="mt-4 bg-blue-500 p-3 rounded-lg"
-        >
-          <Text className="text-white font-semibold">Retry</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView className="flex-1 justify-center items-center bg-gray-50" edges={['top', 'bottom', 'left', 'right']}>
+        <StatusBar barStyle="dark-content" />
+        <Stack.Screen options={{ title: 'Teams', headerRight: () => null }} />
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text className="mt-3 text-gray-600">Loading Teams...</Text>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View className="flex-1 p-4 bg-gray-100">
-      <View className="flex-row justify-between items-center mb-6">
-        <Text className="text-3xl font-bold text-gray-800">Teams</Text>
-        <TouchableOpacity
-          onPress={() => setCreateModalVisible(true)}
-          className="bg-blue-500 p-3 rounded-full shadow-lg"
-        >
-          <PlusIcon size={24} color="white" />
-        </TouchableOpacity>
-      </View>
-
-      {teams.length === 0 && !loadingTeams ? (
-         <View className="flex-1 justify-center items-center">
-            <Text className="text-gray-500 text-lg">No teams found.</Text>
-            <Text className="text-gray-400 mt-1">Why not create one?</Text>
-         </View>
-      ) : (
-        <FlatList
-          data={teams}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TeamListItem team={item} onPress={() => handleTeamSelect(item)} />
-          )}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0000ff"]} />
-          }
-          ListEmptyComponent={
-            !loadingTeams && !teamError ? (
-              <View className="flex-1 justify-center items-center mt-10">
-                <Text className="text-gray-500 text-lg">No teams available.</Text>
-              </View>
-            ) : null
-          }
-        />
-      )}
-
-
-      <CreateTeamModal
-        isVisible={isCreateModalVisible}
-        onClose={() => setCreateModalVisible(false)}
-        currentUserId={authUser?.id || ''}
+    <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'bottom', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" />
+      <Stack.Screen 
+        options={{ 
+          title: 'Teams',
+          headerLargeTitle: true,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={handleCreateTeamPress}
+              className="mr-4 p-1.5"
+              disabled={!authUser}
+            >
+              <PlusIcon size={26} color={authUser ? "#007AFF" : "#CBD5E1"} />
+            </TouchableOpacity>
+          ),
+        }} 
       />
 
-      {selectedTeam && authUser && (
-        <TeamDetailsModal
-          isVisible={isDetailsModalVisible}
-          onClose={() => {
-            setDetailsModalVisible(false);
-            setSelectedTeam(null); // Clear selected team when closing
-          }}
-          teamId={selectedTeam.id}
-          currentUserId={authUser.id}
-        />
-      )}
-    </View>
+      <FlatList
+        data={teams}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View className="px-4">
+            <TeamListItem 
+              team={item} 
+              onPress={() => handleTeamSelect(item)} 
+              isUserTeam={userTeamIds.has(item.id)}
+            />
+          </View>
+        )}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        ListEmptyComponent={
+          !loadingTeams && !teamError ? (
+            <View className="flex-1 justify-center items-center mt-24 px-6">
+              <Users size={48} className="text-gray-300 mb-4" />
+              <Text className="text-gray-600 text-xl font-semibold mb-1">No Teams Yet</Text>
+              <Text className="text-gray-400 text-center">
+                {authUser ? "Be the first to create a team!" : "Teams created by users will appear here."}
+              </Text>
+            </View>
+          ) : teamError && teams.length === 0 ? (
+            <View className="flex-1 justify-center items-center p-4 mt-20">
+                <Text className="text-red-500 text-center mb-4">Error loading teams: {teamError}</Text>
+                <TouchableOpacity
+                onPress={onRefresh}
+                className="bg-sky-500 py-2.5 px-5 rounded-lg active:bg-sky-600"
+                >
+                <Text className="text-white font-semibold">Retry</Text>
+                </TouchableOpacity>
+            </View>
+           ) : null
+        }
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 16 }}
+      />
+    </SafeAreaView>
   );
 }

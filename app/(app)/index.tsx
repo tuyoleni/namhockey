@@ -2,17 +2,16 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   RefreshControl,
   TouchableOpacity,
   SafeAreaView,
   Animated,
   NativeScrollEvent,
   StatusBar,
-  KeyboardAvoidingView,
+  // KeyboardAvoidingView, // No longer needed here for the modal
   Platform
 } from 'react-native';
-import Modal from 'react-native-modal';
+// import Modal from 'react-native-modal'; // No longer needed
 import { useRouter } from 'expo-router';
 import { useNewsStore } from 'store/newsStore';
 import { useEventStore } from 'store/eventStore';
@@ -20,12 +19,13 @@ import { useMediaStore } from 'store/mediaStore';
 import { useUserStore } from 'store/userStore';
 
 import MediaPostList from '@components/home/MediaPostList';
-import MediaPostUpload from '@components/home/MediaPostUpload';
+// MediaPostUpload is no longer directly used here, it will be on its own screen
+// import MediaPostUpload from '@components/home/MediaPostUpload'; 
 import { InfoMessage } from '@components/ui/InfoMessage';
 import NewsFeed from '@components/home/NewsPost';
 import AllEvents from '@components/home/AllEvents';
 
-import { Plus, X } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native'; // X is no longer needed here
 
 type ActiveHomeTab = 'Events' | 'News' | 'Media';
 
@@ -65,7 +65,7 @@ const HomeScreen: React.FC = () => {
 
   const [isScreenRefreshing, setIsScreenRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<ActiveHomeTab>('Events');
-  const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+  // const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false); // Removed modal state
   const [isTopTabBarVisible, setIsTopTabBarVisible] = useState(true);
 
   const handlePageScroll = Animated.event(
@@ -142,7 +142,7 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  const needsScrollViewWrapper = selectedTab !== 'News';
+  const needsScrollViewWrapper = selectedTab !== 'News'; // NewsFeed might have its own ScrollView (FlatList)
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -184,9 +184,10 @@ const HomeScreen: React.FC = () => {
           }
         >
           {renderActiveTabContent()}
-          <View className="h-24" />
+          <View className="h-24" /> 
         </Animated.ScrollView>
       ) : (
+        // If the content (e.g. NewsFeed FlatList) handles its own scrolling
         <View style={{paddingTop: TAB_BAR_HEIGHT}} className="flex-1 bg-gray-100">
           {renderActiveTabContent()}
         </View>
@@ -195,49 +196,11 @@ const HomeScreen: React.FC = () => {
       {authUser && (
         <TouchableOpacity
           className="absolute bottom-6 right-6 w-14 h-14 bg-sky-500 rounded-full items-center justify-center shadow-lg"
-          onPress={() => setIsCreatePostModalOpen(true)}
+          onPress={() => router.push('/post')}
         >
           <Plus size={24} color="white" />
         </TouchableOpacity>
       )}
-
-      <Modal
-        isVisible={isCreatePostModalOpen}
-        onBackdropPress={() => setIsCreatePostModalOpen(false)}
-        onSwipeComplete={() => setIsCreatePostModalOpen(false)}
-        swipeDirection={['down']}
-        animationIn="slideInUp"
-        animationOut="slideOutDown"
-        backdropColor="black"
-        backdropOpacity={0.65}
-        style={{ justifyContent: 'flex-end', margin: 0 }}
-        useNativeDriverForBackdrop
-        propagateSwipe // Allows scrolling within modal content if swipe is not caught by modal itself
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          className="w-full"
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0} 
-        >
-          <SafeAreaView className="w-full max-h-[90vh]">
-            <View className="w-full bg-gray-50 rounded-t-2xl shadow-xl overflow-hidden">
-              <View className="flex-row justify-between items-center px-5 py-[15px] bg-white border-b border-gray-200">
-                <Text className="text-xl font-bold text-gray-800">Create New Media Post</Text>
-                <TouchableOpacity 
-                  onPress={() => setIsCreatePostModalOpen(false)} 
-                  className="p-2 rounded-full active:bg-gray-100"
-                >
-                  <X size={20} color="#4B5263" />
-                </TouchableOpacity>
-              </View>
-              
-              <View className="max-h-[calc(0.9*100vh-80px)]"> 
-                {authUser && <MediaPostUpload loggedInUserId={authUser.id} />}
-              </View>
-            </View>
-          </SafeAreaView>
-        </KeyboardAvoidingView>
-      </Modal>
     </SafeAreaView>
   );
 };

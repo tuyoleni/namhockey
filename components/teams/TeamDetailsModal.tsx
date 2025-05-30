@@ -67,7 +67,6 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
       for (const userId of profilesToFetch) {
         const profileData = await fetchUser(userId);
         if (profileData && 'user' in profileData) {
-          fetchedProfilesUpdate[userId] = profileData.user;
         } else {
           fetchedProfilesUpdate[userId] = null;
         }
@@ -127,7 +126,7 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
 
   const renderMemberItem = ({ item, index }: { item: TeamMemberRow, index: number }) => {
     const profile = memberProfiles[item.user_id];
-    const displayName = profile?.display_name || profile?.username || item.user_id.substring(0, 8);
+    const displayName = profile?.display_name || profile?.display_name || item.user_id.substring(0, 8);
     return (
       <View className={`flex-row items-center p-4 space-x-3 ${index > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
         {profile?.profile_picture ? (
@@ -149,7 +148,7 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
   const renderJoinRequestItem = ({ item, index }: { item: TeamJoinRequestRow, index: number }) => {
     if (!item.user_id) return null;
     const profile = requesterProfiles[item.user_id];
-    const displayName = profile?.display_name || profile?.username || item.user_id.substring(0,8);
+    const displayName = profile?.display_name || profile?.display_name || item.user_id.substring(0,8);
     return (
       <View className={`flex-row items-center p-4 space-x-3 justify-between ${index > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
         <View className="flex-row items-center space-x-3 flex-1">

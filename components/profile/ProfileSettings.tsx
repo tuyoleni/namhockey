@@ -1,17 +1,51 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useUserStore } from 'store/userStore'; // Assuming this is the correct path to your store
 
 const ProfileSettings: React.FC = () => {
   const router = useRouter();
+  const { logoutUser, loading: userLoading } = useUserStore(); // Get logoutUser and loading state
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  // const [showLogoutModal, setShowLogoutModal] = useState(false); // Removed, using Alert instead
 
-  const handleLogout = () => {
-    // Add your logout logic here
-    console.log('User logged out');
-    setShowLogoutModal(false);
+  const confirmLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          onPress: () => console.log("Logout cancelled"),
+          style: "cancel"
+        },
+        {
+          text: "Logout",
+          onPress: handleLogout,
+          style: "destructive"
+        }
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleLogout = async () => {
+    // setShowLogoutModal(false); // Not needed anymore
+    const { success, error } = await logoutUser();
+
+    if (success) {
+      console.log('User logged out successfully');
+      Alert.alert("Logged Out", "You have been successfully logged out.");
+      // Navigate to login screen or home screen after logout
+      // Example: router.replace('/auth/login'); or router.replace('/');
+      // For now, let's assume you want to go to a root or auth path.
+      // You might need to adjust this based on your app's navigation structure.
+      router.replace('/'); // Or '/login', '/auth' etc.
+    } else {
+      console.error('Logout failed:', error);
+      Alert.alert("Logout Failed", error || "An unexpected error occurred. Please try again.");
+    }
   };
 
   return (
@@ -38,8 +72,11 @@ const ProfileSettings: React.FC = () => {
       {showDropdown && (
         <View className="mt-2 bg-[#F2F2F7] rounded-xl overflow-hidden">
           <TouchableOpacity
-            className="flex-row items-center px-4 py-4 border-b border-white/30"
-            onPress={() => router.push('/profile/settings')}
+            className="flex-row items-center px-4 py-4 border-b border-white/30" // Using a subtle border, adjust as needed
+            onPress={() => {
+              setShowDropdown(false); // Close dropdown on navigation
+              router.push('/profile/settings');
+            }}
             accessibilityRole="button"
             accessibilityLabel="Go to settings screen"
           >
@@ -53,17 +90,23 @@ const ProfileSettings: React.FC = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="flex-row items-center px-4 py-4 border-t border-white/30"
-            onPress={() => setShowLogoutModal(true)}
+            className="flex-row items-center px-4 py-4" // Removed border-t, relies on item separation
+            onPress={() => {
+              // setShowDropdown(false); // Optionally close dropdown
+              confirmLogout();
+            }}
             accessibilityRole="button"
             accessibilityLabel="Logout option"
+            disabled={userLoading} // Disable button while logging out
           >
             <Text className="text-base text-[#FF3B30]">Logout</Text>
+            {userLoading && <ActivityIndicator size="small" color="#FF3B30" style={{ marginLeft: 10 }} />}
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Logout Confirmation Modal */}
+      {/* Logout Confirmation Modal - REMOVED */}
+      {/*
       <Modal
         visible={showLogoutModal}
         transparent={true}
@@ -90,6 +133,7 @@ const ProfileSettings: React.FC = () => {
           </View>
         </View>
       </Modal>
+      */}
     </View>
   );
 };

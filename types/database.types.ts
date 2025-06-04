@@ -346,20 +346,35 @@ export type Database = {
         Row: {
           bio: string | null
           display_name: string | null
+          favorite_nhl_team: string | null
+          full_name: string | null
           id: string
+          jersey_number: number | null
+          playing_position: string | null
           profile_picture: string | null
+          skill_level: string | null
         }
         Insert: {
           bio?: string | null
           display_name?: string | null
+          favorite_nhl_team?: string | null
+          full_name?: string | null
           id: string
+          jersey_number?: number | null
+          playing_position?: string | null
           profile_picture?: string | null
+          skill_level?: string | null
         }
         Update: {
           bio?: string | null
           display_name?: string | null
+          favorite_nhl_team?: string | null
+          full_name?: string | null
           id?: string
+          jersey_number?: number | null
+          playing_position?: string | null
           profile_picture?: string | null
+          skill_level?: string | null
         }
         Relationships: []
       }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@utils/superbase';
-import type { Tables, TablesInsert } from 'types/database.types';
+import { Tables, TablesInsert } from 'database.types';
 
 type PostAuthorProfile = Pick<Tables<'profiles'>, 'id' | 'display_name' | 'profile_picture'> | null;
 

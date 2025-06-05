@@ -1,9 +1,9 @@
 // src/store/interactionStore.ts (or wherever you keep your stores)
 
 import { create } from 'zustand';
-import { supabase } from '@utils/superbase'; // Adjust the import path for your supabase client
-import { Database, Tables, TablesInsert } from 'types/database.types'; // Adjust the import path for your database types
+import { supabase } from '@utils/superbase';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { Tables, TablesInsert } from 'database.types';
 
 // Define the types for likes and comments rows
 type LikeRow = Tables<'likes'>;

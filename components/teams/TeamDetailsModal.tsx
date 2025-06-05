@@ -280,7 +280,6 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({ isVisible, onClose,
               isVisible={isAddMemberModalVisible}
               onClose={() => setAddMemberModalVisible(false)}
               teamId={teamDetails.id}
-              currentMembers={teamMembers.map(m => m.user_id)}
             />
           )}
       </View>

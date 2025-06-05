@@ -7,7 +7,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Tables } from 'types/database.types';
+import { Tables } from 'database.types';
 import { useInteractionStore } from 'store/interactionStore';
 import { useUserStore } from 'store/userStore';
 import { Heart, ChevronRight } from 'lucide-react-native';

@@ -1,10 +1,13 @@
 import { create } from 'zustand';
-import { supabase } from '@utils/superbase';
-import { Tables, TablesInsert, TablesUpdate } from 'types/database.types';
+import { Tables, TablesInsert, TablesUpdate } from 'database.types';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { supabase } from '@utils/superbase';
 
 type EventRow = Tables<'events'>;
-export type EventRegistrationRow = Tables<'event_registrations'>;
+
+export type EventRegistrationRowWithTeamDetails = Tables<'event_registrations'> & {
+  teams: Pick<Tables<'teams'>, 'id' | 'name' | 'logo_url' | 'manager_id'> | null;
+};
 
 export type EventWithTeams = EventRow & {
   home_team: Pick<Tables<'teams'>, 'name' | 'logo_url'> | null;
@@ -13,7 +16,7 @@ export type EventWithTeams = EventRow & {
 
 interface EventState {
   events: EventWithTeams[];
-  registrations: EventRegistrationRow[];
+  registrations: EventRegistrationRowWithTeamDetails[];
   loadingEvents: boolean;
   loadingRegistrations: boolean;
   error: string | null;
@@ -26,8 +29,8 @@ interface EventActions {
   updateEvent: (eventId: string, eventData: TablesUpdate<'events'>) => Promise<EventWithTeams | null>;
   deleteEvent: (eventId: string) => Promise<void>;
   subscribeToEvents: () => () => void;
-  fetchRegistrationsByEventId: (eventId: string) => Promise<EventRegistrationRow[]>;
-  registerTeamForEvent: (registrationData: TablesInsert<'event_registrations'>) => Promise<EventRegistrationRow | null>;
+  fetchRegistrationsByEventId: (eventId: string) => Promise<EventRegistrationRowWithTeamDetails[]>;
+  registerTeamForEvent: (registrationData: TablesInsert<'event_registrations'>) => Promise<EventRegistrationRowWithTeamDetails | null>;
   unregisterTeamFromEvent: (registrationId: string) => Promise<void>;
   subscribeToEventRegistrations: (eventId?: string) => () => void;
 }
@@ -38,7 +41,10 @@ const eventSelectQuery = `
   away_team:teams!events_away_team_id_fkey(name, logo_url)
 `;
 
-const registrationSelectQuery = `*`;
+const registrationWithTeamSelectQuery = `
+  id, event_id, team_id, registration_date, status, created_at,
+  teams!inner (id, name, logo_url, manager_id)
+`;
 
 export const useEventStore = create<EventState & EventActions>((set, get) => ({
   events: [],
@@ -71,11 +77,10 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
         .select(eventSelectQuery)
         .eq('id', eventId)
         .single();
-      
+
       set({ loadingEvents: false });
       if (error) {
         console.error(`Error fetching event ${eventId}:`, error);
-        throw error;
       }
       return data as unknown as EventWithTeams | null;
     } catch (e: any) {
@@ -96,10 +101,6 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
 
       set({ loadingEvents: false });
       if (error) throw error;
-      if (data) {
-        const newEvent = data as unknown as EventWithTeams;
-        set(state => ({ events: [...state.events, newEvent].sort((a,b) => (a.start_time && b.start_time ? new Date(a.start_time).getTime() - new Date(b.start_time).getTime() : 0))}));
-      }
       return data as unknown as EventWithTeams | null;
     } catch (e: any) {
       set({ error: e.message || 'Failed to add event', loadingEvents: false });
@@ -120,13 +121,6 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
 
       set({ loadingEvents: false });
       if (error) throw error;
-      if (data) {
-        const updatedEvent = data as unknown as EventWithTeams;
-        set(state => ({
-          events: state.events.map(evt => evt.id === eventId ? updatedEvent : evt)
-                               .sort((a,b) => (a.start_time && b.start_time ? new Date(a.start_time).getTime() - new Date(b.start_time).getTime() : 0)),
-        }));
-      }
       return data as unknown as EventWithTeams | null;
     } catch (e: any) {
       set({ error: e.message || 'Failed to update event', loadingEvents: false });
@@ -145,9 +139,6 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
 
       set({ loadingEvents: false });
       if (error) throw error;
-      set(state => ({
-        events: state.events.filter(evt => evt.id !== eventId)
-      }));
     } catch (e: any) {
       set({ error: e.message || 'Failed to delete event', loadingEvents: false });
       console.error('Error deleting event:', e);
@@ -157,52 +148,15 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
   subscribeToEvents: () => {
     const channel = supabase
       .channel('public-events-realtime')
-      .on<EventRow>(
+      .on<Tables<'events'>>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'events' },
-        async (payload: RealtimePostgresChangesPayload<EventRow>) => {
-          const fetchEventByIdWithDetails = async (id: string): Promise<EventWithTeams | null> => {
-            const { data, error: fetchError } = await supabase
-              .from('events')
-              .select(eventSelectQuery)
-              .eq('id', id)
-              .single();
-            if (fetchError) {
-              console.error(`Error fetching event ${id} for subscription:`, fetchError);
-              return null;
-            }
-            return data as unknown as EventWithTeams | null;
-          };
-
-          const getEventStartTimeValue = (event: EventWithTeams): number => {
-             return event.start_time ? new Date(event.start_time).getTime() : 0;
-          };
-
-          if (payload.eventType === 'INSERT') {
-            const newEventDetails = await fetchEventByIdWithDetails(payload.new.id);
-            if (newEventDetails) {
-              set((state) => ({
-                events: [...state.events, newEventDetails].sort((a, b) =>
-                 getEventStartTimeValue(a) - getEventStartTimeValue(b)
-                )
-              }));
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedEventDetails = await fetchEventByIdWithDetails(payload.new.id);
-            if (updatedEventDetails) {
-              set((state) => ({
-                events: state.events.map((event) =>
-                  event.id === updatedEventDetails.id ? updatedEventDetails : event
-                ).sort((a, b) =>
-                 getEventStartTimeValue(a) - getEventStartTimeValue(b)
-                ),
-              }));
-            }
+        async (payload: RealtimePostgresChangesPayload<Tables<'events'>>) => {
+          console.log('Event change received!', payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+             get().fetchEvents();
           } else if (payload.eventType === 'DELETE') {
-            const oldId = (payload.old as Partial<EventRow>)?.id;
-            if (oldId) {
-                set((state) => ({ events: state.events.filter((event) => event.id !== oldId) }));
-            }
+             set((state) => ({ events: state.events.filter((event) => event.id !== (payload.old as Partial<EventRow>)?.id) }));
           }
         }
       )
@@ -210,12 +164,13 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
         if (err) {
           console.error('Error subscribing to events channel:', err);
           set({ error: `Subscription error: ${err.message}` });
-        } else if (status === 'SUBSCRIBED' && get().events.length === 0 && !get().loadingEvents) {
-            get().fetchEvents();
+        } else if (status === 'SUBSCRIBED') {
+            console.log('Successfully subscribed to events channel.');
         }
       });
 
     return () => {
+      console.log('Removing events channel subscription');
       supabase.removeChannel(channel);
     };
   },
@@ -225,19 +180,20 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('event_registrations')
-        .select(registrationSelectQuery)
+        .select(registrationWithTeamSelectQuery)
         .eq('event_id', eventId)
         .order('registration_date', { ascending: true });
 
       if (error) throw error;
+      const fetchedRegistrations = (data as unknown as EventRegistrationRowWithTeamDetails[] || []);
       set((state) => ({
         registrations: [
           ...state.registrations.filter(reg => reg.event_id !== eventId),
-          ...(data as EventRegistrationRow[] || [])
+          ...fetchedRegistrations
         ].sort((a,b) => (a.registration_date && b.registration_date ? new Date(a.registration_date).getTime() - new Date(b.registration_date).getTime() : 0)),
         loadingRegistrations: false
       }));
-      return data as EventRegistrationRow[] || [];
+      return fetchedRegistrations;
     } catch (e: any) {
       set({ error: e.message || 'Failed to fetch registrations', loadingRegistrations: false });
       console.error('Error fetching registrations:', e);
@@ -251,12 +207,12 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
       const { data, error } = await supabase
         .from('event_registrations')
         .insert(registrationData)
-        .select(registrationSelectQuery)
+        .select(registrationWithTeamSelectQuery)
         .single();
 
       set({loadingRegistrations: false});
       if (error) throw error;
-      return data as EventRegistrationRow | null;
+      return data as unknown as EventRegistrationRowWithTeamDetails | null;
     } catch (e: any) {
       set({ error: e.message || 'Failed to register team', loadingRegistrations: false });
       console.error('Error registering team:', e);
@@ -281,36 +237,59 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
 
   subscribeToEventRegistrations: (eventId?: string) => {
     const channelName = eventId
-      ? `public-event-registrations-${eventId}`
+      ? `public-event-registrations-for-event-${eventId}`
       : 'public-event-registrations-all';
     const filterString = eventId ? `event_id=eq.${eventId}` : undefined;
 
+    console.log(`Attempting to subscribe to ${channelName} with filter: ${filterString}`);
+
     const channel = supabase
       .channel(channelName)
-      .on<EventRegistrationRow>(
+      .on<Tables<'event_registrations'>>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'event_registrations', filter: filterString },
-        (payload: RealtimePostgresChangesPayload<EventRegistrationRow>) => {
-          const getRegistrationDateValue = (reg: EventRegistrationRow): number => {
+        async (payload: RealtimePostgresChangesPayload<Tables<'event_registrations'>>) => {
+          console.log(`Registration change received on ${channelName}!`, payload);
+
+          const fetchRegistrationWithDetails = async (id: string): Promise<EventRegistrationRowWithTeamDetails | null> => {
+            const { data: regData, error: regError } = await supabase
+              .from('event_registrations')
+              .select(registrationWithTeamSelectQuery)
+              .eq('id', id)
+              .single();
+            if (regError) {
+              console.error(`Error fetching registration ${id} for subscription update:`, regError);
+              return null;
+            }
+            return regData as unknown as EventRegistrationRowWithTeamDetails | null;
+          };
+
+          const getRegistrationDateValue = (reg: EventRegistrationRowWithTeamDetails): number => {
             return reg.registration_date ? new Date(reg.registration_date).getTime() : 0;
           };
 
           if (payload.eventType === 'INSERT') {
-            set((state) => ({
-              registrations: [...state.registrations, payload.new as EventRegistrationRow].sort((a,b) =>
-                getRegistrationDateValue(a) - getRegistrationDateValue(b)
-              )
-            }));
+            const newRegDetails = await fetchRegistrationWithDetails(payload.new.id);
+            if (newRegDetails && (!eventId || newRegDetails.event_id === eventId)) {
+                set((state) => ({
+                registrations: [...state.registrations.filter(r => r.id !== newRegDetails.id), newRegDetails].sort((a,b) =>
+                    getRegistrationDateValue(a) - getRegistrationDateValue(b)
+                )
+                }));
+            }
           } else if (payload.eventType === 'UPDATE') {
-            set((state) => ({
-              registrations: state.registrations.map((reg) =>
-                reg.id === (payload.new as EventRegistrationRow).id ? (payload.new as EventRegistrationRow) : reg
-              ).sort((a,b) =>
-                getRegistrationDateValue(a) - getRegistrationDateValue(b)
-              )
-            }));
+             const updatedRegDetails = await fetchRegistrationWithDetails(payload.new.id);
+             if (updatedRegDetails && (!eventId || updatedRegDetails.event_id === eventId)) {
+                set((state) => ({
+                registrations: state.registrations.map((reg) =>
+                    reg.id === updatedRegDetails.id ? updatedRegDetails : reg
+                ).sort((a,b) =>
+                    getRegistrationDateValue(a) - getRegistrationDateValue(b)
+                )
+                }));
+             }
           } else if (payload.eventType === 'DELETE') {
-            const oldId = (payload.old as Partial<EventRegistrationRow>)?.id;
+            const oldId = (payload.old as Partial<Tables<'event_registrations'>>)?.id;
             if (oldId) {
                 set((state) => ({ registrations: state.registrations.filter((reg) => reg.id !== oldId) }));
             }
@@ -321,15 +300,13 @@ export const useEventStore = create<EventState & EventActions>((set, get) => ({
         if (err) {
           console.error(`Error subscribing to ${channelName} channel:`, err);
           set({ error: `Subscription error (${channelName}): ${err.message}` });
-        } else if (status === 'SUBSCRIBED' && eventId && !get().loadingRegistrations) {
-            const hasCurrentEventRegistrations = get().registrations.some(reg => reg.event_id === eventId);
-            if (!hasCurrentEventRegistrations) {
-                get().fetchRegistrationsByEventId(eventId);
-            }
+        } else if (status === 'SUBSCRIBED') {
+            console.log(`Successfully subscribed to ${channelName} channel.`);
         }
       });
 
     return () => {
+      console.log(`Removing ${channelName} channel subscription`);
       supabase.removeChannel(channel);
     };
   },

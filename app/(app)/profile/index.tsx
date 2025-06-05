@@ -45,7 +45,7 @@ const ProfileScreen: React.FC = () => {
 
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <View className="flex-1 bg-white">
       <StatusBar style="dark" />
       <ScrollView
         className="flex-1"
@@ -64,7 +64,7 @@ const ProfileScreen: React.FC = () => {
         <ProfileSettings />
         <ProfileActivity />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, Alert, ScrollView, Switch, Platform } from 'react-native';
 import { useTeamStore, TeamRow } from '../../store/teamStore';
 import { X } from 'lucide-react-native';
-import { TablesUpdate } from 'types/database.types';
+import { TablesUpdate } from 'database.types';
 
 interface EditTeamModalProps {
   isVisible: boolean;

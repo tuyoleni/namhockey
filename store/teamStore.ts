@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { supabase } from '@utils/superbase';
-import { Tables, TablesInsert, TablesUpdate } from '../types/database.types';
 import { useUserStore } from './userStore';
+import { supabase } from '@utils/superbase';
+import { Tables, TablesInsert, TablesUpdate } from 'database.types';
 
 export type TeamRow = Tables<'teams'>;
 export type TeamMemberRow = Tables<'team_members'> & { profiles: Pick<Tables<'profiles'>, 'id' | 'display_name' | 'profile_picture'> | null };
@@ -47,6 +47,7 @@ interface TeamActions {
     fetchJoinRequests: (teamId: string) => Promise<void>;
     approveJoinRequest: (requestId: string) => Promise<boolean>;
     rejectJoinRequest: (requestId: string) => Promise<boolean>;
+    cancelJoinRequest: (requestId: string, teamId: string) => Promise<boolean>; // New action
     subscribeToTeamMembers: (teamId: string) => () => void;
     subscribeToJoinRequests: (teamId: string) => () => void;
 }
@@ -86,7 +87,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 .from('team_members')
                 .select('teams!inner(id, name, description, logo_url, is_public, manager_id, created_at, updated_at)')
                 .eq('user_id', userId);
-            
+
             if (memberTeamsError) throw memberTeamsError;
             const userTeamsData = memberTeamsData?.map(item => item.teams as unknown as TeamRow).filter(Boolean) || [];
             set({ userTeams: userTeamsData, loadingTeams: false});
@@ -97,7 +98,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
             return [];
         }
     },
-    
+
     createTeam: async (newTeamData: TeamInsertArgs, creatorUserId: string) => {
         set({ loadingTeams: true, error: null });
         try {
@@ -112,7 +113,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
             const { data: createdTeam, error: teamError } = await supabase
                 .from('teams')
                 .insert(teamPayload)
-                .select('id, name, description, logo_url, is_public, manager_id, created_at, updated_at') 
+                .select('id, name, description, logo_url, is_public, manager_id, created_at, updated_at')
                 .single();
 
             if (teamError) throw teamError;
@@ -123,13 +124,13 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
                 .insert({ team_id: createdTeam.id, user_id: creatorUserId, role: 'admin', status: 'active' });
 
             if (memberError) {
-                await supabase.from('teams').delete().eq('id', createdTeam.id); 
+                await supabase.from('teams').delete().eq('id', createdTeam.id);
                 throw memberError;
             }
-            
+
             set({ loadingTeams: false });
-            await get().fetchTeams(); 
-            await get().fetchUserTeams(creatorUserId); 
+            await get().fetchTeams();
+            await get().fetchUserTeams(creatorUserId);
             return createdTeam as TeamRow;
         } catch (error: any) {
             logSupabaseError('createTeam', error);
@@ -143,15 +144,15 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('teams')
-        .update(updates as TablesUpdate<'teams'>) 
+        .update(updates as TablesUpdate<'teams'>)
         .eq('id', teamId)
         .select('id, name, description, logo_url, is_public, manager_id, created_at, updated_at')
         .single();
-      
+
       set({ loadingTeamDetails: false });
       if (error) throw error;
       if (data) {
-        set(state => ({ 
+        set(state => ({
             teamDetails: state.teamDetails?.id === teamId ? data as TeamRow : state.teamDetails,
             teams: state.teams.map(t => t.id === teamId ? data as TeamRow : t),
             userTeams: state.userTeams.map(t => t.id === teamId ? data as TeamRow : t)
@@ -207,11 +208,11 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         .eq('team_id', teamId);
 
       if (membersError) throw new Error(membersError.message);
-      
-      set({ 
-        teamDetails: teamData as TeamRow, 
-        teamMembers: (membersData as unknown as TeamMemberRow[]) || [], 
-        loadingTeamDetails: false 
+
+      set({
+        teamDetails: teamData as TeamRow,
+        teamMembers: (membersData as unknown as TeamMemberRow[]) || [],
+        loadingTeamDetails: false
       });
     } catch (e: any) {
       logSupabaseError('fetchTeamDetails', e);
@@ -227,10 +228,10 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         .delete()
         .eq('team_id', teamId)
         .eq('user_id', userId);
-      
+
       set({ loadingTeamDetails: false });
       if (error) throw error;
-      
+
       set(state => ({
         teamMembers: state.teamMembers.filter(member => !(member.team_id === teamId && member.user_id === userId)),
         userTeams: state.userTeams.filter(team => {
@@ -238,10 +239,10 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
             return !(userId === authUserId && team.id === teamId);
         })
       }));
-      if (get().teamDetails?.id === teamId && get().teamDetails?.manager_id !== userId) { // If not manager, just refetch members
-         get().fetchTeamDetails(teamId); 
+      if (get().teamDetails?.id === teamId && get().teamDetails?.manager_id !== userId) {
+         get().fetchTeamDetails(teamId);
       } else if (get().teamDetails?.id === teamId && get().teamDetails?.manager_id === userId) {
-         set({teamDetails: null}); // Manager left, clear details for this user
+         set({teamDetails: null});
       }
       return true;
     } catch (e: any) {
@@ -257,7 +258,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       const { error } = await supabase
         .from('team_join_requests')
         .insert({ team_id: teamId, user_id: userId, status: 'pending' });
-      
+
       set({ loadingJoinRequests: false });
       if (error) throw error;
       get().fetchJoinRequests(teamId);
@@ -280,8 +281,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         .from('team_join_requests')
         .select('id, team_id, user_id, status, requested_at, profiles!inner(id, display_name, profile_picture)')
         .eq('team_id', teamId)
-        .eq('status', 'pending');
-      
+        .eq('status', 'pending'); // Only fetch pending requests
+
       set({ loadingJoinRequests: false });
       if (error) throw error;
       set({ joinRequests: (data as unknown as TeamJoinRequestRow[]) || [] });
@@ -307,14 +308,14 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
           p_request_id: requestId,
           p_team_id: requestData.team_id,
           p_user_id: requestData.user_id,
-          p_role: 'member'
+          p_role: 'member' // Default role for approved members
       });
-            
+
       set({ loadingJoinRequests: false });
       if (rpcError) throw rpcError;
-      
-      await get().fetchJoinRequests(requestData.team_id); 
-      await get().fetchTeamDetails(requestData.team_id); 
+
+      await get().fetchJoinRequests(requestData.team_id);
+      await get().fetchTeamDetails(requestData.team_id);
       return true;
     } catch (error: any) {
       logSupabaseError('approveJoinRequest', error);
@@ -328,25 +329,47 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     try {
       const { data: requestDetails, error: fetchError } = await supabase
         .from('team_join_requests')
-        .select('team_id')
+        .select('team_id') // Only need team_id to refresh the list
         .eq('id', requestId)
         .single();
-            
+
       if (fetchError) throw fetchError;
       if (!requestDetails) throw new Error("Request not found for rejection.");
 
       const { error } = await supabase
         .from('team_join_requests')
-        .delete() 
+        .delete()
         .eq('id', requestId);
 
       set({ loadingJoinRequests: false });
       if (error) throw error;
-      get().fetchJoinRequests(requestDetails.team_id);
+      get().fetchJoinRequests(requestDetails.team_id); // Refresh the list for the specific team
       return true;
     } catch (error: any) {
       logSupabaseError('rejectJoinRequest', error);
       set({ error: error.message || 'Could not reject join request', loadingJoinRequests: false });
+      return false;
+    }
+  },
+
+  // New action to cancel a join request
+  cancelJoinRequest: async (requestId: string, teamId: string) => {
+    set({ loadingJoinRequests: true, error: null });
+    try {
+      const { error } = await supabase
+        .from('team_join_requests')
+        .delete()
+        .eq('id', requestId);
+
+      set({ loadingJoinRequests: false });
+      if (error) throw error;
+
+      // Refresh the join requests for the specific team
+      get().fetchJoinRequests(teamId);
+      return true;
+    } catch (e: any) {
+      logSupabaseError('cancelJoinRequest', e);
+      set({ error: e.message || 'Failed to cancel join request', loadingJoinRequests: false });
       return false;
     }
   },
@@ -357,7 +380,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       const { error } = await supabase
         .from('team_members')
         .insert({ team_id: teamId, user_id: userId, role: role, status: 'active' });
-      
+
       set({ loadingTeamDetails: false });
       if (error) throw error;
       get().fetchTeamDetails(teamId);
@@ -368,7 +391,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       return false;
     }
   },
-  
+
   removeTeamMember: async (teamId: string, userIdToRemove: string) => {
     set({ loadingTeamDetails: true, error: null });
     try {
@@ -379,8 +402,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         .eq('user_id', userIdToRemove);
 
       if (error) throw error;
-      
-      await get().fetchTeamDetails(teamId); 
+
+      await get().fetchTeamDetails(teamId);
       set({ loadingTeamDetails: false });
       return true;
     } catch (error: any) {
@@ -394,7 +417,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   subscribeToTeams: () => {
     const channel = supabase
       .channel('public:teams')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, _payload => {
         get().fetchTeams();
         const authUserId = useUserStore.getState().authUser?.id;
         if(authUserId) get().fetchUserTeams(authUserId);
@@ -409,10 +432,10 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     const channel = supabase
       .channel(`public:team_members:team_id=eq.${teamId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members', filter: `team_id=eq.${teamId}` }, () => {
-        get().fetchTeamDetails(teamId); 
-        get().fetchJoinRequests(teamId); 
+        get().fetchTeamDetails(teamId);
+        get().fetchJoinRequests(teamId);
         const authUserId = useUserStore.getState().authUser?.id;
-        if(authUserId) get().fetchUserTeams(authUserId); 
+        if(authUserId) get().fetchUserTeams(authUserId);
       })
       .subscribe();
     return () => {

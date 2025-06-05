@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Image } from "react-native";
-import type { Tables } from "types/database.types";
+import type { Tables } from "database.types";
 
 interface ArticleMetaInfoProps {
   profile: Tables<"profiles"> | null | undefined;

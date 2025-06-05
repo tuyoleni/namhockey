@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Switch, Platform } from 'react-native';
 import { useTeamStore, TeamRow } from 'store/teamStore';
-import { TablesUpdate } from 'types/database.types';
+import { TablesUpdate } from 'database.types';
 
 interface UpdateTeamFormProps {
   team: TeamRow;

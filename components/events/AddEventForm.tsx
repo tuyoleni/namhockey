@@ -18,7 +18,7 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { format } from 'date-fns';
 import { useEventStore } from 'store/eventStore';
 import { useTeamStore } from 'store/teamStore';
-import { TablesInsert, Tables } from 'types/database.types';
+import { TablesInsert, Tables } from 'database.types';
 import { ChevronDown, Calendar, Clock, Users } from 'lucide-react-native';
 
 import Animated, {

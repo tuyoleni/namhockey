@@ -71,7 +71,7 @@ export default function TeamsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'bottom', 'left', 'right']}>
+    <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" />
       <Stack.Screen 
         options={{ 
@@ -127,6 +127,6 @@ export default function TeamsScreen() {
         }
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 16 }}
       />
-    </SafeAreaView>
+    </View>
   );
 }

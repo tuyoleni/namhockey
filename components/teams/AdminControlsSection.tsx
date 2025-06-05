@@ -49,20 +49,20 @@ const AdminControlsSection: React.FC<AdminControlsSectionProps> = ({
 
   return (
     <View className="mt-2">
-      <Text className="text-xs font-semibold text-gray-400 uppercase px-4 pb-2 pt-4">
+      <Text className="text-xs font-semibold text-gray-400 uppercase px-4 pb-2 pt-4 tracking-wider">
         Admin Controls
       </Text>
-      <View className="bg-white border-y border-gray-200">
+      <View className="bg-white border-y border-gray-200 rounded-lg overflow-hidden shadow-sm mx-2">
         {controlItems.map((item, index) => (
           <TouchableOpacity
             key={item.label}
             onPress={item.action}
-            className={`flex-row justify-between items-center p-4 active:bg-gray-50 ${
+            className={`flex-row justify-between items-center p-4 ${
               !item.isLast ? 'border-b border-gray-100' : ''
             } ${item.textColor === 'text-red-500' ? 'active:bg-red-50' : 'active:bg-gray-50'}`}
           >
             <View className="flex-row items-center space-x-3">
-              <item.icon size={20} className={item.iconColor} />
+              <item.icon size={20} className={item.iconColor} strokeWidth={2} />
               <Text className={`text-base ${item.textColor}`}>{item.label}</Text>
             </View>
             <ChevronRight size={20} className={item.iconColor === 'text-red-500' ? 'text-red-400' : 'text-gray-400'} />

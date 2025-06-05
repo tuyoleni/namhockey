@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, Alert, ActivityIndicator } from 'react-native';
 import { useEventStore } from 'store/eventStore';
-import { TablesInsert } from 'types/database.types';
+import { TablesInsert } from 'database.types';
 
 interface RegisterTeamFormProps {
   eventId: string;

@@ -1,17 +1,12 @@
 import { create } from 'zustand';
-import { Tables } from '../types/database.types'; // Assuming this path is correct and reflects new DB schema
 import { PostgrestError, User } from '@supabase/supabase-js';
 import { supabase } from '@utils/superbase';
+import { Tables } from 'database.types';
 
-// The `Tables<'profiles'>` type from your database.types.ts should automatically include
-// full_name, favorite_nhl_team, playing_position, skill_level, and jersey_number
-// if the types were generated after your SQL table update.
+
 export type Profile = Tables<'profiles'> & {
-  // These fields are derived or specific to the auth user's session/metadata
-  // rather than direct columns that every profile row would have in the same way.
-  authUserUsername: string | null; // Username from auth.users.user_metadata
-  authUserMetadataFullName: string | null; // Full name from auth.users.user_metadata
-  // Counts are typically aggregated or fetched separately
+  authUserUsername: string | null;
+  authUserMetadataFullName: string | null;
   following_count: number;
   followers_count: number;
   posts_count: number;

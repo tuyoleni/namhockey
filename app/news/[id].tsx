@@ -14,7 +14,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useNewsStore } from "store/newsStore";
 import { useInteractionStore } from "store/interactionStore";
 import { useUserStore } from "store/userStore";
-import type { Tables } from "types/database.types";
+import type { Tables } from "database.types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ArticleHeader from "@components/article/ArticleHeader";
 import ArticleInteractionBar from "@components/article/ArticleInteractionBar";

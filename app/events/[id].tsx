@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, StatusBar, Platform, Image } from 'react-native';
 import { useLocalSearchParams, useNavigation, Stack, useRouter } from 'expo-router';
-import { useEventStore, EventWithTeams, EventRegistrationRow } from 'store/eventStore';
+import { useEventStore, EventWithTeams } from 'store/eventStore';
 import { useUserStore } from 'store/userStore';
 import { useTeamStore, TeamRow } from 'store/teamStore';
 import RegistrationList from '@components/events/RegistrationList';
@@ -30,7 +30,7 @@ const EventDetailScreen = () => {
   const { userTeams, fetchUserTeams, loadingTeams: isLoadingUserTeams } = useTeamStore();
 
   const [currentEvent, setCurrentEvent] = useState<EventWithTeams | null>(null);
-  const [currentEventRegistrations, setCurrentEventRegistrations] = useState<EventRegistrationRow[]>([]);
+  const [currentEventRegistrations, setCurrentEventRegistrations] = useState<any[]>([]);
   const [isProcessingRegistration, setIsProcessingRegistration] = useState<string | null>(null);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { EventWithTeams, useEventStore } from 'store/eventStore';
-import { TablesUpdate } from 'types/database.types';
+import { TablesUpdate } from 'database.types';
 
 interface UpdateEventFormProps {
   event: EventWithTeams;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Tables } from 'types/database.types'; // Adjust import path
+import { Tables } from 'database.types'; // Adjust import path
 
 type EventRegistrationRow = Tables<'event_registrations'>;
 

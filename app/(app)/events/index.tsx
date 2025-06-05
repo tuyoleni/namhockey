@@ -136,7 +136,7 @@ const EventScreen: React.FC = () => {
     }
 
   return (
-        <SafeAreaView className="flex-1 bg-gray-100">
+        <View className="flex-1 bg-gray-100">
           <EventList
             onUpdateEvent={handleUpdatePress}
             onDeleteEvent={handleDeleteEvent}
@@ -215,7 +215,7 @@ const EventScreen: React.FC = () => {
                 </View>
              </View>
           </Modal>
-        </SafeAreaView>
+        </View>
   );
 };
 

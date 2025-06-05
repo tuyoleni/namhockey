@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { supabase } from '@utils/superbase'; // Ensure this path is correct
-import { Tables, TablesInsert, TablesUpdate } from 'types/database.types'; // Ensure this path is correct
+import { supabase } from '@utils/superbase';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { Tables, TablesInsert, TablesUpdate } from 'database.types';
 
 type ProfileRow = Tables<'profiles'>;
 
